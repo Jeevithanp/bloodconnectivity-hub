@@ -8,14 +8,14 @@ const Testimonials = () => {
       avatar: 'https://i.pravatar.cc/150?img=1',
       name: 'Emma Wilson',
       role: 'Regular Donor',
-      quote: 'BloodConnect has made it incredibly easy for me to track my donation eligibility and find nearby donation centers. The app notifications remind me when I'm eligible to donate again.',
+      quote: 'BloodConnect has made it incredibly easy for me to track my donation eligibility and find nearby donation centers. The app notifications remind me when I\'m eligible to donate again.',
       rating: 5
     },
     {
       avatar: 'https://i.pravatar.cc/150?img=2',
       name: 'Dr. James Mitchell',
       role: 'Emergency Physician',
-      quote: 'As an ER doctor, I've seen firsthand how this platform can save lives. The emergency request feature helps us connect with compatible donors quickly during critical situations.',
+      quote: 'As an ER doctor, I\'ve seen firsthand how this platform can save lives. The emergency request feature helps us connect with compatible donors quickly during critical situations.',
       rating: 5
     },
     {
