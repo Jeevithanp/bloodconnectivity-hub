@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Droplet } from 'lucide-react';
+import { ArrowRight, Droplet, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const CallToAction = () => {
@@ -46,6 +46,12 @@ const CallToAction = () => {
             </Button>
             <Button size="lg" variant="outline" className="bg-transparent text-white border-white hover:bg-white/10" asChild>
               <Link to="/learn-more">Learn More</Link>
+            </Button>
+            <Button size="lg" variant="outline" className="bg-transparent text-white border-white hover:bg-white/10 flex items-center gap-2" asChild>
+              <Link to="/article">
+                <BookOpen className="h-4 w-4" />
+                <span>Read Our Article</span>
+              </Link>
             </Button>
           </div>
         </div>
