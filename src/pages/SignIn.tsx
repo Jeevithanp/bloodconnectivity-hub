@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -9,10 +8,21 @@ import { Droplet, User, Lock, Mail, Phone, UserPlus, HeartPulse, Shield, MapPin 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
+import { registerUser } from '@/api/register';
 
 const SignIn = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('signin');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Form states
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [bloodType, setBloodType] = useState('');
+  const [accountType, setAccountType] = useState('donor');
+  const [password, setPassword] = useState('');
   
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,12 +32,52 @@ const SignIn = () => {
     });
   };
   
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Registration successful",
-      description: "Your account has been created. Welcome to BloodConnect!",
-    });
+    setIsLoading(true);
+    
+    try {
+      const userData = {
+        firstName,
+        lastName,
+        email,
+        phoneNumber: phone,
+        bloodType,
+        accountType,
+        password
+      };
+      
+      const result = await registerUser(userData);
+      
+      if (result.success) {
+        toast({
+          title: "Registration successful",
+          description: "Your account has been created. Welcome to BloodConnect!",
+        });
+        setActiveTab('signin');
+        // Reset form
+        setFirstName('');
+        setLastName('');
+        setEmail('');
+        setPhone('');
+        setBloodType('');
+        setPassword('');
+      } else {
+        toast({
+          title: "Registration failed",
+          description: result.error || "There was a problem creating your account. Please try again.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Registration failed",
+        description: "There was a problem creating your account. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -132,7 +182,12 @@ const SignIn = () => {
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Account Type</label>
-                    <Select defaultValue="donor" required>
+                    <Select 
+                      defaultValue="donor" 
+                      value={accountType}
+                      onValueChange={setAccountType}
+                      required
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select account type" />
                       </SelectTrigger>
@@ -147,12 +202,24 @@ const SignIn = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">First Name</label>
-                      <Input type="text" placeholder="Enter your first name" required />
+                      <Input 
+                        type="text" 
+                        placeholder="Enter your first name" 
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        required 
+                      />
                     </div>
                     
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Last Name</label>
-                      <Input type="text" placeholder="Enter your last name" required />
+                      <Input 
+                        type="text" 
+                        placeholder="Enter your last name" 
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        required 
+                      />
                     </div>
                   </div>
                   
@@ -164,6 +231,8 @@ const SignIn = () => {
                         type="email" 
                         placeholder="Enter your email" 
                         className="pl-10"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                         required
                       />
                     </div>
@@ -177,6 +246,8 @@ const SignIn = () => {
                         type="tel" 
                         placeholder="Enter your phone number" 
                         className="pl-10"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
                         required
                       />
                     </div>
@@ -184,7 +255,11 @@ const SignIn = () => {
                   
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Blood Type</label>
-                    <Select required>
+                    <Select 
+                      value={bloodType}
+                      onValueChange={setBloodType}
+                      required
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select your blood type" />
                       </SelectTrigger>
@@ -210,6 +285,8 @@ const SignIn = () => {
                         type="password" 
                         placeholder="Create a password" 
                         className="pl-10"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         required
                       />
                     </div>
@@ -223,7 +300,9 @@ const SignIn = () => {
                     </label>
                   </div>
                   
-                  <Button type="submit" className="w-full">Create Account</Button>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Creating Account...' : 'Create Account'}
+                  </Button>
                 </form>
               </CardContent>
               <CardFooter className="flex flex-col space-y-4">
