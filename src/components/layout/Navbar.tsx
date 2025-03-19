@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -17,6 +16,13 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
+type NavItem = {
+  name: string;
+  href: string;
+  icon: React.ForwardRefExoticComponent<any>;
+  isButton?: boolean;
+};
+
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -24,7 +30,7 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   // Navigation items - base items that everyone sees
-  const baseNavItems = [
+  const baseNavItems: NavItem[] = [
     { name: 'Find Donors', href: '/find-donors', icon: Heart },
     { name: 'Emergency Request', href: '/emergency', icon: LifeBuoy },
     { name: 'Donation Centers', href: '/centers', icon: MapPin },
@@ -37,13 +43,13 @@ const Navbar = () => {
       // User is logged in
       return [
         ...baseNavItems,
-        { name: 'Profile', href: '/profile', icon: User, button: false },
+        { name: 'Profile', href: '/profile', icon: User, isButton: false },
       ];
     } else {
       // User is not logged in
       return [
         ...baseNavItems,
-        { name: 'Sign In', href: '/signin', icon: User, button: true },
+        { name: 'Sign In', href: '/signin', icon: User, isButton: true },
       ];
     }
   };
@@ -89,7 +95,7 @@ const Navbar = () => {
         {/* Desktop Menu */}
         <nav className="hidden md:flex items-center gap-6">
           {navItems.map((item) => (
-            item.button ? (
+            item.isButton ? (
               <Button key={item.name} asChild variant="default" className="animate-pulse-subtle">
                 <Link to={item.href} className="flex items-center gap-2">
                   <item.icon className="h-4 w-4" />

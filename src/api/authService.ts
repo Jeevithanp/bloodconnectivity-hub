@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 export type AuthSession = {
   user: {
     id: string;
-    email: string;
+    email: string | null;
   } | null;
   session: any | null;
 };
@@ -41,7 +41,10 @@ export async function getCurrentSession(): Promise<AuthSession> {
     if (error) throw error;
     
     return {
-      user: data.session?.user || null,
+      user: data.session?.user ? {
+        id: data.session.user.id,
+        email: data.session.user.email || null
+      } : null,
       session: data.session || null,
     };
   } catch (error) {
@@ -53,7 +56,10 @@ export async function getCurrentSession(): Promise<AuthSession> {
 export function subscribeToAuthChanges(callback: (session: AuthSession) => void) {
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     callback({
-      user: session?.user || null,
+      user: session?.user ? {
+        id: session.user.id,
+        email: session.user.email || null
+      } : null,
       session: session || null,
     });
   });
