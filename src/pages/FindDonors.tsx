@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
@@ -26,7 +27,7 @@ type Donor = {
 };
 
 const FindDonors = () => {
-  const [bloodType, setBloodType] = useState<string>('');
+  const [bloodType, setBloodType] = useState<string>('any');
   const [distance, setDistance] = useState<string>('10');
   const [donors, setDonors] = useState<Donor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -177,7 +178,7 @@ const FindDonors = () => {
                       <SelectValue placeholder="Select blood type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any</SelectItem>
+                      <SelectItem value="any">Any</SelectItem>
                       <SelectItem value="A+">A+</SelectItem>
                       <SelectItem value="A-">A-</SelectItem>
                       <SelectItem value="B+">B+</SelectItem>
@@ -206,6 +207,7 @@ const FindDonors = () => {
                     variant="outline" 
                     className="w-full flex items-center gap-2"
                     onClick={handleGetLocation}
+                    disabled={isLoading}
                   >
                     <Target className="h-4 w-4" />
                     <span>Use My Current Location</span>
