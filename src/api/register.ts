@@ -32,57 +32,26 @@ export async function registerUser(userData: UserRegistrationData) {
     if (authData.user) {
       console.log('Auth user created successfully:', authData.user.id);
       
-      // Check if user_profiles table exists
-      const { error: tableCheckError } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .limit(1);
-        
-      if (tableCheckError && tableCheckError.message.includes('relation "user_profiles" does not exist')) {
-        console.log('Creating user in profiles table instead');
-        // Fallback to using profiles table
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authData.user.id,
-            first_name: userData.firstName,
-            last_name: userData.lastName,
-            email: userData.email,
-            phone: userData.phoneNumber,
-            blood_type: userData.bloodType,
-            account_type: userData.accountType,
-            created_at: new Date().toISOString(),
-          });
+      // Add user data to the profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authData.user.id,
+          full_name: `${userData.firstName} ${userData.lastName}`,
+          blood_type: userData.bloodType,
+          // Set required fields with default values
+          address: 'Not provided', // Required field in your schema
+          birth_date: new Date().toISOString().split('T')[0], // Required field in your schema
+          is_donor: userData.accountType === 'donor' ? true : false,
+          created_at: new Date().toISOString(),
+        });
 
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-          return { 
-            success: false, 
-            error: profileError.message 
-          };
-        }
-      } else {
-        // Use the user_profiles table
-        const { error: profileError } = await supabase
-          .from('user_profiles')
-          .insert({
-            id: authData.user.id,
-            first_name: userData.firstName,
-            last_name: userData.lastName,
-            email: userData.email,
-            phone_number: userData.phoneNumber,
-            blood_type: userData.bloodType,
-            account_type: userData.accountType,
-            created_at: new Date().toISOString(),
-          });
-
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-          return { 
-            success: false, 
-            error: profileError.message 
-          };
-        }
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        return { 
+          success: false, 
+          error: profileError.message 
+        };
       }
 
       return { 

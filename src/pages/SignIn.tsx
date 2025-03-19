@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,9 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
 import { registerUser } from '@/api/register';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SignIn = () => {
   const { toast } = useToast();
+  const { user, signIn: authSignIn } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>('signin');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -23,13 +27,38 @@ const SignIn = () => {
   const [bloodType, setBloodType] = useState('');
   const [accountType, setAccountType] = useState('donor');
   const [password, setPassword] = useState('');
+
+  // Login form states
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   
-  const handleSignIn = (e: React.FormEvent) => {
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Sign in successful",
-      description: "Welcome back to BloodConnect!",
-    });
+    setIsLoading(true);
+    
+    try {
+      await authSignIn(loginEmail, loginPassword);
+      toast({
+        title: "Sign in successful",
+        description: "Welcome back to BloodConnect!",
+      });
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: "Sign in failed",
+        description: error.message || "There was a problem signing in. Please check your credentials.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const handleRegister = async (e: React.FormEvent) => {
@@ -52,7 +81,7 @@ const SignIn = () => {
       if (result.success) {
         toast({
           title: "Registration successful",
-          description: "Your account has been created. Welcome to BloodConnect!",
+          description: "Your account has been created. Please sign in.",
         });
         setActiveTab('signin');
         // Reset form
@@ -62,6 +91,8 @@ const SignIn = () => {
         setPhone('');
         setBloodType('');
         setPassword('');
+        // Set the login email to the registered email for convenience
+        setLoginEmail(email);
       } else {
         toast({
           title: "Registration failed",
@@ -69,10 +100,10 @@ const SignIn = () => {
           variant: "destructive"
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Registration failed",
-        description: "There was a problem creating your account. Please try again.",
+        description: error.message || "There was a problem creating your account. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -123,6 +154,8 @@ const SignIn = () => {
                         type="email" 
                         placeholder="Enter your email" 
                         className="pl-10"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
                         required
                       />
                     </div>
@@ -141,6 +174,8 @@ const SignIn = () => {
                         type="password" 
                         placeholder="Enter your password" 
                         className="pl-10"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
                         required
                       />
                     </div>
@@ -153,7 +188,9 @@ const SignIn = () => {
                     </label>
                   </div>
                   
-                  <Button type="submit" className="w-full">Sign In</Button>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Signing In...' : 'Sign In'}
+                  </Button>
                 </form>
               </CardContent>
               <CardFooter className="flex flex-col space-y-4">

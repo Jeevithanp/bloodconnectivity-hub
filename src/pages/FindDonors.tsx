@@ -1,5 +1,5 @@
-
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,18 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin, Droplet, Phone, MessageSquare } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDonors } from '@/api/userService';
 
-// Mock data for donors
-const MOCK_DONORS = [
-  { id: 1, name: 'Emma Wilson', bloodType: 'A+', distance: 1.2, lastDonation: '2023-10-15', phone: '+1234567890' },
-  { id: 2, name: 'James Mitchell', bloodType: 'O-', distance: 2.5, lastDonation: '2023-09-20', phone: '+1234567891' },
-  { id: 3, name: 'Sophia Chen', bloodType: 'B+', distance: 3.1, lastDonation: '2023-11-05', phone: '+1234567892' },
-  { id: 4, name: 'Michael Rodriguez', bloodType: 'AB+', distance: 4.0, lastDonation: '2023-08-30', phone: '+1234567893' },
-  { id: 5, name: 'Olivia Taylor', bloodType: 'A-', distance: 5.2, lastDonation: '2023-07-12', phone: '+1234567894' },
-  { id: 6, name: 'William Johnson', bloodType: 'O+', distance: 2.8, lastDonation: '2023-10-25', phone: '+1234567895' },
-];
-
-type Donor = typeof MOCK_DONORS[0];
+type Donor = {
+  id: string;
+  full_name: string;
+  blood_type: string;
+  last_donation: string | null;
+  distance?: number; // Will be calculated based on coordinates
+};
 
 const FindDonors = () => {
   const [bloodType, setBloodType] = useState<string>('');
@@ -26,31 +24,63 @@ const FindDonors = () => {
   const [donors, setDonors] = useState<Donor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      const filteredDonors = MOCK_DONORS.filter(donor => {
-        if (bloodType && donor.bloodType !== bloodType) return false;
-        if (Number(distance) < donor.distance) return false;
-        return true;
+    try {
+      // Get donors from supabase through our edge function
+      const data = await getDonors({
+        bloodType: bloodType || undefined,
+        maxDistance: distance ? parseFloat(distance) : undefined
       });
       
-      setDonors(filteredDonors);
-      setIsLoading(false);
-      
+      if (data && data.data) {
+        // Add a mock distance since we're not calculating real distances yet
+        const donorsWithDistance = data.data.map((donor: any) => ({
+          ...donor,
+          distance: Math.random() * 10 // Mock distance - would be calculated based on coords
+        }));
+        
+        setDonors(donorsWithDistance);
+        
+        toast({
+          title: `${donorsWithDistance.length} donors found`,
+          description: "You can now contact them directly.",
+        });
+      } else {
+        setDonors([]);
+        toast({
+          title: "No donors found",
+          description: "Try adjusting your search criteria.",
+        });
+      }
+    } catch (error) {
+      console.error('Error searching for donors:', error);
       toast({
-        title: `${filteredDonors.length} donors found`,
-        description: "You can now contact them directly.",
+        title: "Error",
+        description: "There was a problem searching for donors.",
+        variant: "destructive"
       });
-    }, 1500);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleContact = (donor: Donor) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "You need to sign in to contact donors.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     toast({
-      title: `Contacting ${donor.name}`,
+      title: `Contacting ${donor.full_name}`,
       description: "A notification has been sent to the donor.",
     });
   };
@@ -124,13 +154,7 @@ const FindDonors = () => {
                 <Button 
                   variant="destructive" 
                   className="w-full"
-                  onClick={() => {
-                    toast({
-                      title: "Emergency Request Feature",
-                      description: "This feature will be available soon.",
-                      variant: "destructive",
-                    });
-                  }}
+                  onClick={() => navigate('/emergency')}
                 >
                   Create Emergency Request
                 </Button>
@@ -160,18 +184,20 @@ const FindDonors = () => {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div>
-                          <h3 className="font-semibold text-lg">{donor.name}</h3>
+                          <h3 className="font-semibold text-lg">{donor.full_name}</h3>
                           <div className="flex items-center mt-2 text-muted-foreground">
                             <MapPin className="h-4 w-4 mr-1" />
-                            <span>{donor.distance} km away</span>
+                            <span>{donor.distance?.toFixed(1) || "Unknown"} km away</span>
                           </div>
                           <div className="flex items-center mt-1 text-muted-foreground">
                             <Droplet className="h-4 w-4 mr-1 text-primary" />
-                            <span>Blood Type: <strong>{donor.bloodType}</strong></span>
+                            <span>Blood Type: <strong>{donor.blood_type}</strong></span>
                           </div>
-                          <p className="text-sm text-muted-foreground mt-2">
-                            Last donation: {new Date(donor.lastDonation).toLocaleDateString()}
-                          </p>
+                          {donor.last_donation && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              Last donation: {new Date(donor.last_donation).toLocaleDateString()}
+                            </p>
+                          )}
                         </div>
                         <div className="flex flex-col gap-2">
                           <Button size="sm" variant="outline" className="flex items-center gap-2" onClick={() => handleContact(donor)}>
