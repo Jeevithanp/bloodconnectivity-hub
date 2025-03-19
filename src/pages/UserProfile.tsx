@@ -5,16 +5,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, Droplet, Map, Calendar, Check } from 'lucide-react';
+import { User, Droplet, Map, Calendar, Check, Target, MapPin } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserProfile, updateUserProfile } from '@/api/userService';
+import { useLocation } from '@/contexts/LocationContext';
+import { updateUserLocation } from '@/api/locationService';
+import MapComponent from '@/components/maps/MapComponent';
 
 const UserProfile = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { userLocation, getCurrentLocation } = useLocation();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
   const [profile, setProfile] = useState({
     full_name: '',
     blood_type: '',
@@ -22,6 +27,8 @@ const UserProfile = () => {
     birth_date: '',
     is_donor: false,
     last_donation: null as string | null,
+    latitude: null as number | null,
+    longitude: null as number | null,
   });
 
   useEffect(() => {
@@ -39,6 +46,8 @@ const UserProfile = () => {
             birth_date: data.data.birth_date || '',
             is_donor: data.data.is_donor || false,
             last_donation: data.data.last_donation || null,
+            latitude: data.data.latitude || null,
+            longitude: data.data.longitude || null,
           });
         }
       } catch (error) {
@@ -75,6 +84,42 @@ const UserProfile = () => {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleUpdateLocation = async () => {
+    if (!user) return;
+    
+    setIsUpdatingLocation(true);
+    
+    try {
+      const location = await getCurrentLocation();
+      
+      if (location) {
+        // Update the local state
+        setProfile(prev => ({
+          ...prev,
+          latitude: location.latitude,
+          longitude: location.longitude
+        }));
+        
+        // Save to the backend
+        await updateUserLocation(user.id, location.latitude, location.longitude);
+        
+        toast({
+          title: 'Location Updated',
+          description: 'Your current location has been saved.',
+        });
+      }
+    } catch (error) {
+      console.error('Error updating location:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update your location. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingLocation(false);
     }
   };
 
@@ -155,6 +200,61 @@ const UserProfile = () => {
               </div>
               
               <div className="space-y-2">
+                <label className="text-sm font-medium">Your Location</label>
+                {profile.latitude && profile.longitude ? (
+                  <div className="space-y-3">
+                    <div className="h-48 rounded-md overflow-hidden">
+                      <MapComponent 
+                        initialCenter={[profile.longitude, profile.latitude]}
+                        initialZoom={14}
+                        markers={[{
+                          id: 'user-location',
+                          latitude: profile.latitude,
+                          longitude: profile.longitude,
+                          title: 'Your Location'
+                        }]}
+                        height="100%"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                        <span>Last updated: {new Date().toLocaleDateString()}</span>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex items-center gap-1"
+                        onClick={handleUpdateLocation}
+                        disabled={isUpdatingLocation}
+                      >
+                        {isUpdatingLocation ? (
+                          <Target className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Target className="h-4 w-4" />
+                        )}
+                        <span>Update</span>
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    className="w-full flex items-center gap-2"
+                    onClick={handleUpdateLocation}
+                    disabled={isUpdatingLocation}
+                  >
+                    {isUpdatingLocation ? (
+                      <Target className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Target className="h-4 w-4" />
+                    )}
+                    <span>Set Your Current Location</span>
+                  </Button>
+                )}
+              </div>
+              
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Donor Status</label>
                 <div className="flex items-center gap-2">
                   <input 
@@ -215,7 +315,12 @@ const UserProfile = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     Update your location settings to help nearby recipients
                   </p>
-                  <Button variant="outline" className="w-full">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={handleUpdateLocation}
+                    disabled={isUpdatingLocation}
+                  >
                     Update Location
                   </Button>
                 </div>

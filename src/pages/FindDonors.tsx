@@ -1,21 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPin, Droplet, Phone, MessageSquare } from 'lucide-react';
+import { MapPin, Droplet, Phone, MessageSquare, Target, Navigation } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDonors } from '@/api/userService';
+import { getNearbyDonors } from '@/api/locationService';
+import { useLocation } from '@/contexts/LocationContext';
+import MapComponent from '@/components/maps/MapComponent';
+import DonorTracker from '@/components/maps/DonorTracker';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type Donor = {
   id: string;
   full_name: string;
   blood_type: string;
   last_donation: string | null;
-  distance?: number; // Will be calculated based on coordinates
+  distance?: number;
+  latitude?: number;
+  longitude?: number;
 };
 
 const FindDonors = () => {
@@ -23,31 +30,40 @@ const FindDonors = () => {
   const [distance, setDistance] = useState<string>('10');
   const [donors, setDonors] = useState<Donor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [viewType, setViewType] = useState<'list' | 'map'>('list');
+  const [trackedDonor, setTrackedDonor] = useState<{id: string; name: string} | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { userLocation, getCurrentLocation } = useLocation();
 
   const handleSearch = async () => {
     setIsLoading(true);
     
     try {
-      // Get donors from supabase through our edge function
-      const data = await getDonors({
-        bloodType: bloodType || undefined,
-        maxDistance: distance ? parseFloat(distance) : undefined
-      });
+      let data;
+      
+      // If we have user's location, use it to find nearby donors
+      if (userLocation) {
+        data = await getNearbyDonors(
+          bloodType, 
+          parseFloat(distance), 
+          userLocation.latitude, 
+          userLocation.longitude
+        );
+      } else {
+        // Otherwise use the regular search without location
+        data = await getDonors({
+          bloodType: bloodType || undefined,
+          maxDistance: distance ? parseFloat(distance) : undefined
+        });
+      }
       
       if (data && data.data) {
-        // Add a mock distance since we're not calculating real distances yet
-        const donorsWithDistance = data.data.map((donor: any) => ({
-          ...donor,
-          distance: Math.random() * 10 // Mock distance - would be calculated based on coords
-        }));
-        
-        setDonors(donorsWithDistance);
+        setDonors(data.data);
         
         toast({
-          title: `${donorsWithDistance.length} donors found`,
+          title: `${data.data.length} donors found`,
           description: "You can now contact them directly.",
         });
       } else {
@@ -69,6 +85,31 @@ const FindDonors = () => {
     }
   };
 
+  useEffect(() => {
+    // If the user location changes and we have donors, update distance for each donor
+    if (userLocation && donors.length > 0) {
+      const updatedDonors = donors.map(donor => {
+        if (donor.latitude && donor.longitude) {
+          // Calculate distance using Haversine formula
+          const R = 6371; // Earth's radius in km
+          const dLat = (donor.latitude - userLocation.latitude) * Math.PI / 180;
+          const dLon = (donor.longitude - userLocation.longitude) * Math.PI / 180;
+          const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(userLocation.latitude * Math.PI / 180) * Math.cos(donor.latitude * Math.PI / 180) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const distance = R * c;
+          
+          return {...donor, distance};
+        }
+        return donor;
+      });
+      
+      setDonors(updatedDonors);
+    }
+  }, [userLocation, donors.length]);
+
   const handleContact = (donor: Donor) => {
     if (!user) {
       toast({
@@ -83,6 +124,32 @@ const FindDonors = () => {
       title: `Contacting ${donor.full_name}`,
       description: "A notification has been sent to the donor.",
     });
+  };
+
+  const handleTrackDonor = (donor: Donor) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "You need to sign in to track donors.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setTrackedDonor({
+      id: donor.id,
+      name: donor.full_name
+    });
+  };
+
+  const handleGetLocation = async () => {
+    const location = await getCurrentLocation();
+    if (location) {
+      toast({
+        title: "Location Updated",
+        description: "Your current location has been updated.",
+      });
+    }
   };
 
   return (
@@ -133,6 +200,17 @@ const FindDonors = () => {
                     max="50"
                   />
                 </div>
+
+                <div className="pt-2">
+                  <Button 
+                    variant="outline" 
+                    className="w-full flex items-center gap-2"
+                    onClick={handleGetLocation}
+                  >
+                    <Target className="h-4 w-4" />
+                    <span>Use My Current Location</span>
+                  </Button>
+                </div>
               </CardContent>
               <CardFooter>
                 <Button 
@@ -163,13 +241,57 @@ const FindDonors = () => {
           </div>
           
           <div className="lg:col-span-2">
-            <h2 className="text-2xl font-semibold mb-4">
-              {donors.length > 0 
-                ? `${donors.length} Donors Found` 
-                : "Search for donors using the filters"}
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold">
+                {donors.length > 0 
+                  ? `${donors.length} Donors Found` 
+                  : "Search for donors using the filters"}
+              </h2>
+              
+              <Tabs value={viewType} onValueChange={(value) => setViewType(value as 'list' | 'map')}>
+                <TabsList>
+                  <TabsTrigger value="list">List View</TabsTrigger>
+                  <TabsTrigger value="map">Map View</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
             
-            {donors.length === 0 && !isLoading ? (
+            {trackedDonor ? (
+              <DonorTracker 
+                donorId={trackedDonor.id} 
+                donorName={trackedDonor.name}
+                onClose={() => setTrackedDonor(null)}
+              />
+            ) : viewType === 'map' && donors.length > 0 ? (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="h-[500px] w-full">
+                    <MapComponent 
+                      markers={donors
+                        .filter(donor => donor.latitude && donor.longitude)
+                        .map(donor => ({
+                          id: donor.id,
+                          latitude: donor.latitude!,
+                          longitude: donor.longitude!,
+                          title: donor.full_name,
+                          description: `Blood Type: ${donor.blood_type}`,
+                          type: 'donor'
+                        }))}
+                      height="100%"
+                      onMarkerClick={(marker) => {
+                        const donor = donors.find(d => d.id === marker.id);
+                        if (donor) {
+                          toast({
+                            title: donor.full_name,
+                            description: `Blood Type: ${donor.blood_type}${donor.distance ? ` • ${donor.distance.toFixed(1)} km away` : ''}`,
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : donors.length === 0 && !isLoading ? (
               <div className="bg-muted/50 rounded-lg p-12 text-center">
                 <Droplet className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium">No donors found</h3>
@@ -207,6 +329,10 @@ const FindDonors = () => {
                           <Button size="sm" variant="outline" className="flex items-center gap-2" onClick={() => handleContact(donor)}>
                             <MessageSquare className="h-4 w-4" />
                             <span>Message</span>
+                          </Button>
+                          <Button size="sm" variant="outline" className="flex items-center gap-2" onClick={() => handleTrackDonor(donor)}>
+                            <Navigation className="h-4 w-4" />
+                            <span>Track</span>
                           </Button>
                         </div>
                       </div>
