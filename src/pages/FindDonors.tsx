@@ -149,6 +149,8 @@ const FindDonors = () => {
         title: "Location Updated",
         description: "Your current location has been updated.",
       });
+      // Trigger a new search with the updated location
+      handleSearch();
     }
   };
 

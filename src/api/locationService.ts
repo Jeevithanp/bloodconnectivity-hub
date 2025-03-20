@@ -80,7 +80,7 @@ export async function getDonationCenters(latitude: number, longitude: number, ma
     });
     
     if (error) throw error;
-    return data;
+    return { data: data || [] };
   } catch (error) {
     console.error('Error getting donation centers:', error);
     throw error;
@@ -100,6 +100,31 @@ export async function trackDonor(donorId: string) {
     return data;
   } catch (error) {
     console.error('Error tracking donor:', error);
+    throw error;
+  }
+}
+
+// New function to start donation process
+export async function initiateDonationProcess(donorId: string, requestDetails: {
+  bloodType: string;
+  units: number;
+  location: string;
+  time: string;
+  message?: string;
+}) {
+  try {
+    const { data, error } = await supabase.functions.invoke('user-operations', {
+      body: {
+        action: 'initiateDonation',
+        donorId,
+        data: requestDetails
+      }
+    });
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error initiating donation process:', error);
     throw error;
   }
 }

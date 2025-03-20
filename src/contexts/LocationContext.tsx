@@ -19,10 +19,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   const getCurrentLocation = async (): Promise<GeolocationCoordinates | null> => {
     if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser');
+      const errorMsg = 'Geolocation is not supported by your browser';
+      setError(errorMsg);
       toast({
         title: 'Location Error',
-        description: 'Geolocation is not supported by your browser',
+        description: errorMsg,
         variant: 'destructive',
       });
       return null;
@@ -35,7 +36,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
-          timeout: 10000,
+          timeout: 15000,
           maximumAge: 0
         });
       });
@@ -61,6 +62,24 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     getCurrentLocation().catch(err => {
       console.log('Initial location fetch failed silently:', err);
     });
+    
+    // Set up a position watcher for real-time updates
+    let watchId: number;
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          setUserLocation(position.coords);
+        },
+        (err) => {
+          console.warn('Position watch error:', err.message);
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+    
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
   }, []);
 
   return (

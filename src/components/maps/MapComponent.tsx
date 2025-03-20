@@ -2,11 +2,11 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { Button } from '@/components/ui/button';
-import { MapPin, Target } from 'lucide-react';
+import { Target } from 'lucide-react';
 import { useLocation } from '@/contexts/LocationContext';
 
 // Google Maps API key
-const GOOGLE_MAPS_API_KEY = 'AIzaSyDb_UOAB9u0gH5KPzQXuavrXX-ItKm09So'; // This is a placeholder key, replace with your actual key
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDb_UOAB9u0gH5KPzQXuavrXX-ItKm09So'; // Replace with your actual API key
 
 type MapMarker = {
   id: string;
@@ -51,7 +51,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const mapRef = useRef<google.maps.Map | null>(null);
   
   // Initialize Google Maps API
-  const { isLoaded } = useJsApiLoader({
+  const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: GOOGLE_MAPS_API_KEY
   });
@@ -105,6 +105,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       scale: 8,
     };
   };
+
+  if (loadError) {
+    return <div style={{ height, width }} className={`flex items-center justify-center bg-muted ${className}`}>
+      Error loading maps: {loadError.message}
+    </div>;
+  }
 
   if (!isLoaded) {
     return <div style={{ height, width }} className={`flex items-center justify-center bg-muted ${className}`}>Loading map...</div>;
