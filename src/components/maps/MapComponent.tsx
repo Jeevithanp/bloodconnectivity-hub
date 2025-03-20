@@ -8,7 +8,7 @@ import { useLocation } from '@/contexts/LocationContext';
 // Google Maps API key
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDb_UOAB9u0gH5KPzQXuavrXX-ItKm09So'; // This is a placeholder key, replace with your actual key
 
-type Marker = {
+type MapMarker = {
   id: string;
   longitude: number;
   latitude: number;
@@ -19,13 +19,13 @@ type Marker = {
 };
 
 type MapComponentProps = {
-  markers?: Marker[];
+  markers?: MapMarker[];
   initialCenter?: [number, number];
   initialZoom?: number;
   interactive?: boolean;
   height?: string;
   width?: string;
-  onMarkerClick?: (marker: Marker) => void;
+  onMarkerClick?: (marker: MapMarker) => void;
   className?: string;
 };
 
@@ -47,7 +47,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   className = '',
 }) => {
   const { userLocation, getCurrentLocation, isLoading } = useLocation();
-  const [selectedMarker, setSelectedMarker] = useState<Marker | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   
   // Initialize Google Maps API
@@ -72,7 +72,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       : { lat: 37.0902, lng: -95.7129 }; // Default to center of US
 
   // Handle marker click
-  const handleMarkerClick = (marker: Marker) => {
+  const handleMarkerClick = (marker: MapMarker) => {
     setSelectedMarker(marker);
     if (onMarkerClick) {
       onMarkerClick(marker);
@@ -89,7 +89,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   // Get marker icon based on type
-  const getMarkerIcon = (marker: Marker) => {
+  const getMarkerIcon = (marker: MapMarker) => {
     let color = marker.color || '#3b82f6';
     if (marker.type === 'donor') color = '#ef4444';
     if (marker.type === 'center') color = '#22c55e';
