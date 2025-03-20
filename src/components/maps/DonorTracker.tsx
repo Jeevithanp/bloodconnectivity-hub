@@ -3,9 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Phone, MessageSquare, MapPin, Clock } from 'lucide-react';
+import { Phone, MessageSquare, MapPin, Clock, LocateFixed, Navigation } from 'lucide-react';
 import MapComponent from './MapComponent';
 import { trackDonor } from '@/api/locationService';
+import { formatDistance } from '@/utils/mapUtils';
+import { useLocation } from '@/contexts/LocationContext';
 
 type DonorTrackerProps = {
   donorId: string;
@@ -26,7 +28,13 @@ const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose
   const [donorLocation, setDonorLocation] = useState<DonorLocation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [trackingStarted, setTrackingStarted] = useState(false);
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  const [distanceFromUser, setDistanceFromUser] = useState<string | null>(null);
   const { toast } = useToast();
+  const { userLocation } = useLocation();
+  
+  // Track interval reference
+  const trackingIntervalRef = React.useRef<number | null>(null);
 
   useEffect(() => {
     let intervalId: number;
@@ -34,11 +42,26 @@ const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose
     const fetchDonorLocation = async () => {
       try {
         setIsLoading(true);
+        console.log('Tracking donor:', donorId);
         const response = await trackDonor(donorId);
         
         if (response?.data) {
           setDonorLocation(response.data);
+          console.log('Donor location updated:', response.data);
+          
+          // Calculate distance if user location is available
+          if (userLocation && response.data.latitude && response.data.longitude) {
+            const distance = google.maps.geometry.spherical.computeDistanceBetween(
+              new google.maps.LatLng(userLocation.latitude, userLocation.longitude),
+              new google.maps.LatLng(response.data.latitude, response.data.longitude)
+            );
+            
+            // Convert from meters to kilometers
+            const distanceInKm = distance / 1000;
+            setDistanceFromUser(formatDistance(distanceInKm));
+          }
         } else {
+          console.error('No donor location data received');
           toast({
             title: 'Tracking Error',
             description: 'Could not retrieve donor location',
@@ -60,13 +83,23 @@ const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose
     if (trackingStarted) {
       fetchDonorLocation();
       // Update location every 15 seconds
-      intervalId = window.setInterval(fetchDonorLocation, 15000);
+      trackingIntervalRef.current = window.setInterval(fetchDonorLocation, 15000) as unknown as number;
     }
 
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      if (trackingIntervalRef.current) {
+        console.log('Cleaning up tracking interval');
+        clearInterval(trackingIntervalRef.current);
+        trackingIntervalRef.current = null;
+      }
     };
-  }, [donorId, trackingStarted, toast]);
+  }, [donorId, trackingStarted, toast, userLocation]);
+
+  // Handle map loaded event
+  const handleMapLoaded = (map: google.maps.Map) => {
+    console.log('Map instance loaded in DonorTracker');
+    setMapInstance(map);
+  };
 
   const startTracking = () => {
     setTrackingStarted(true);
@@ -78,10 +111,22 @@ const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose
 
   const stopTracking = () => {
     setTrackingStarted(false);
+    if (trackingIntervalRef.current) {
+      clearInterval(trackingIntervalRef.current);
+      trackingIntervalRef.current = null;
+    }
+    
     toast({
       title: 'Tracking Stopped',
       description: `Stopped tracking ${donorName}'s location`,
     });
+  };
+
+  const openDirections = () => {
+    if (donorLocation) {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${donorLocation.latitude},${donorLocation.longitude}`;
+      window.open(url, '_blank');
+    }
   };
 
   return (
@@ -127,6 +172,7 @@ const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose
                 initialCenter={[donorLocation.longitude, donorLocation.latitude]}
                 initialZoom={15}
                 height="100%"
+                onMapLoaded={handleMapLoaded}
               />
             </div>
             
@@ -138,6 +184,11 @@ const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose
                   <p className="text-sm text-muted-foreground">
                     {donorLocation.address || 'Address not available'}
                   </p>
+                  {distanceFromUser && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {distanceFromUser} from your location
+                    </p>
+                  )}
                 </div>
               </div>
               
@@ -169,12 +220,12 @@ const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose
                 <Phone className="h-4 w-4" />
                 <span>Call</span>
               </Button>
-              <Button variant="outline" className="flex-1 flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                <span>Message</span>
+              <Button variant="outline" className="flex-1 flex items-center gap-2" onClick={openDirections}>
+                <Navigation className="h-4 w-4" />
+                <span>Directions</span>
               </Button>
               <Button variant="destructive" className="flex-1" onClick={stopTracking}>
-                Stop Tracking
+                Stop
               </Button>
             </div>
           </>

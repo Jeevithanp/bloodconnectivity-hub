@@ -1,12 +1,15 @@
 
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { Button } from '@/components/ui/button';
 import { Target } from 'lucide-react';
 import { useLocation } from '@/contexts/LocationContext';
+import { useToast } from '@/components/ui/use-toast';
 
 // Google Maps API key
-const GOOGLE_MAPS_API_KEY = 'AIzaSyDb_UOAB9u0gH5KPzQXuavrXX-ItKm09So'; // Replace with your actual API key
+// Replace this with your actual Google Maps API key from Google Cloud Console
+// Make sure it has Maps JavaScript API and Geocoding API enabled
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDb_UOAB9u0gH5KPzQXuavrXX-ItKm09So';
 
 type MapMarker = {
   id: string;
@@ -27,6 +30,7 @@ type MapComponentProps = {
   width?: string;
   onMarkerClick?: (marker: MapMarker) => void;
   className?: string;
+  onMapLoaded?: (map: google.maps.Map) => void;
 };
 
 // Map container styles
@@ -44,23 +48,29 @@ const MapComponent: React.FC<MapComponentProps> = ({
   height = '400px',
   width = '100%',
   onMarkerClick,
+  onMapLoaded,
   className = '',
 }) => {
   const { userLocation, getCurrentLocation, isLoading } = useLocation();
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const { toast } = useToast();
   
   // Initialize Google Maps API
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: ['places']
   });
 
   const onLoad = useCallback((map: google.maps.Map) => {
+    console.log('Map loaded successfully');
     mapRef.current = map;
-  }, []);
+    if (onMapLoaded) onMapLoaded(map);
+  }, [onMapLoaded]);
 
   const onUnmount = useCallback(() => {
+    console.log('Map unmounted');
     mapRef.current = null;
   }, []);
 
@@ -73,6 +83,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   // Handle marker click
   const handleMarkerClick = (marker: MapMarker) => {
+    console.log('Marker clicked:', marker);
     setSelectedMarker(marker);
     if (onMarkerClick) {
       onMarkerClick(marker);
@@ -81,10 +92,20 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   // Handle recenter to user location
   const handleRecenter = async () => {
-    const location = await getCurrentLocation();
-    if (location && mapRef.current) {
-      mapRef.current.panTo({ lat: location.latitude, lng: location.longitude });
-      mapRef.current.setZoom(14);
+    try {
+      const location = await getCurrentLocation();
+      if (location && mapRef.current) {
+        mapRef.current.panTo({ lat: location.latitude, lng: location.longitude });
+        mapRef.current.setZoom(14);
+        console.log('Map recentered to:', location);
+      }
+    } catch (error) {
+      console.error('Error recentering map:', error);
+      toast({
+        title: 'Location Error',
+        description: 'Could not recenter the map to your location.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -106,14 +127,28 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
   };
 
+  // Log the current map status for debugging
+  useEffect(() => {
+    console.log('Google Maps API Status:', { isLoaded, loadError });
+    if (loadError) {
+      console.error('Google Maps loading error:', loadError);
+    }
+  }, [isLoaded, loadError]);
+
   if (loadError) {
     return <div style={{ height, width }} className={`flex items-center justify-center bg-muted ${className}`}>
-      Error loading maps: {loadError.message}
+      <div className="text-center p-4">
+        <h3 className="text-lg font-semibold text-destructive mb-2">Error loading Google Maps</h3>
+        <p className="text-sm text-muted-foreground">{loadError.message}</p>
+        <p className="text-xs mt-2">Please check your API key or internet connection</p>
+      </div>
     </div>;
   }
 
   if (!isLoaded) {
-    return <div style={{ height, width }} className={`flex items-center justify-center bg-muted ${className}`}>Loading map...</div>;
+    return <div style={{ height, width }} className={`flex items-center justify-center bg-muted ${className}`}>
+      <div className="animate-pulse">Loading map...</div>
+    </div>;
   }
 
   return (
@@ -145,6 +180,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             onClick={() => handleMarkerClick(marker)}
             icon={getMarkerIcon(marker)}
             title={marker.title}
+            animation={google.maps.Animation.DROP}
           />
         ))}
 

@@ -7,6 +7,7 @@ type LocationContextType = {
   isLoading: boolean;
   error: string | null;
   getCurrentLocation: () => Promise<GeolocationCoordinates | null>;
+  getAddressFromCoordinates?: (lat: number, lng: number) => Promise<string | null>;
 };
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
@@ -33,6 +34,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
+      console.log('Requesting user location...');
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
@@ -41,9 +43,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         });
       });
 
+      console.log('Location obtained:', position.coords);
       setUserLocation(position.coords);
       return position.coords;
     } catch (err: any) {
+      console.error('Location error:', err);
       const errorMessage = err.message || 'Unable to retrieve your location';
       setError(errorMessage);
       toast({
@@ -57,7 +61,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Setup location tracking on component mount
   useEffect(() => {
+    console.log('LocationProvider initialized');
+    
     // Get location when component mounts - but don't throw errors on initial load
     getCurrentLocation().catch(err => {
       console.log('Initial location fetch failed silently:', err);
@@ -68,17 +75,23 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     if (navigator.geolocation) {
       watchId = navigator.geolocation.watchPosition(
         (position) => {
+          console.log('Position updated via watcher');
           setUserLocation(position.coords);
         },
         (err) => {
           console.warn('Position watch error:', err.message);
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, maximumAge: 30000 }
       );
+      
+      console.log('Location watcher started with ID:', watchId);
     }
     
     return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
+      if (watchId) {
+        console.log('Clearing location watcher:', watchId);
+        navigator.geolocation.clearWatch(watchId);
+      }
     };
   }, []);
 
