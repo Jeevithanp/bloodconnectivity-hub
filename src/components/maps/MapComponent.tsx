@@ -1,13 +1,12 @@
 
-import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import React, { useRef, useState, useCallback } from 'react';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { Button } from '@/components/ui/button';
 import { MapPin, Target } from 'lucide-react';
 import { useLocation } from '@/contexts/LocationContext';
 
-// Mapbox access token
-mapboxgl.accessToken = 'pk.eyJ1IjoiYmxvb2Rjb25uZWN0YXBwIiwiYSI6ImNscDNrYnRxbzAybmIyaXJ1a3Q1d3JmcnAifQ.GmQnK_XJn3-V0nKqLIbV-w';
+// Google Maps API key
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDb_UOAB9u0gH5KPzQXuavrXX-ItKm09So'; // This is a placeholder key, replace with your actual key
 
 type Marker = {
   id: string;
@@ -30,6 +29,13 @@ type MapComponentProps = {
   className?: string;
 };
 
+// Map container styles
+const containerStyle = {
+  width: '100%',
+  height: '100%',
+  borderRadius: '0.5rem'
+};
+
 const MapComponent: React.FC<MapComponentProps> = ({
   markers = [],
   initialCenter,
@@ -40,123 +46,114 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onMarkerClick,
   className = '',
 }) => {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<{ [key: string]: mapboxgl.Marker }>({});
   const { userLocation, getCurrentLocation, isLoading } = useLocation();
-  const [mapInitialized, setMapInitialized] = useState(false);
+  const [selectedMarker, setSelectedMarker] = useState<Marker | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  
+  // Initialize Google Maps API
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY
+  });
 
-  // Initialize map
-  useEffect(() => {
-    if (!mapContainer.current || map.current) return;
-    
-    const center = initialCenter || (userLocation ? [userLocation.longitude, userLocation.latitude] : [-95.7129, 37.0902]);
-    
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: center as [number, number],
-      zoom: initialZoom,
-    });
-
-    if (interactive) {
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    } else {
-      map.current.scrollZoom.disable();
-      map.current.boxZoom.disable();
-      map.current.dragRotate.disable();
-      map.current.dragPan.disable();
-      map.current.keyboard.disable();
-      map.current.doubleClickZoom.disable();
-      map.current.touchZoomRotate.disable();
-    }
-
-    map.current.on('load', () => {
-      setMapInitialized(true);
-    });
-
-    return () => {
-      markersRef.current = {};
-      map.current?.remove();
-      map.current = null;
-    };
+  const onLoad = useCallback((map: google.maps.Map) => {
+    mapRef.current = map;
   }, []);
 
-  // Update map center when userLocation changes and initialCenter is not provided
-  useEffect(() => {
-    if (!map.current || !userLocation || initialCenter) return;
-    
-    map.current.flyTo({
-      center: [userLocation.longitude, userLocation.latitude],
-      essential: true,
-    });
-  }, [userLocation, initialCenter]);
+  const onUnmount = useCallback(() => {
+    mapRef.current = null;
+  }, []);
 
-  // Update markers when markers prop changes
-  useEffect(() => {
-    if (!map.current || !mapInitialized) return;
+  // Get center coordinates
+  const center = initialCenter 
+    ? { lat: initialCenter[1], lng: initialCenter[0] } 
+    : userLocation
+      ? { lat: userLocation.latitude, lng: userLocation.longitude }
+      : { lat: 37.0902, lng: -95.7129 }; // Default to center of US
 
-    // Clear existing markers
-    Object.values(markersRef.current).forEach(marker => marker.remove());
-    markersRef.current = {};
-
-    // Add new markers
-    markers.forEach(marker => {
-      // Choose color based on type
-      let color = marker.color || '#3b82f6';
-      if (marker.type === 'donor') color = '#ef4444';
-      if (marker.type === 'center') color = '#22c55e';
-      if (marker.type === 'hospital') color = '#3b82f6';
-      if (marker.type === 'emergency') color = '#f97316';
-
-      // Create HTML element for marker
-      const el = document.createElement('div');
-      el.className = 'marker';
-      el.style.backgroundColor = color;
-      el.style.width = '24px';
-      el.style.height = '24px';
-      el.style.borderRadius = '50%';
-      el.style.display = 'flex';
-      el.style.justifyContent = 'center';
-      el.style.alignItems = 'center';
-      el.style.boxShadow = '0 0 0 4px rgba(255,255,255,0.5)';
-      el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>';
-      
-      // Create popup
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-        `<strong>${marker.title}</strong>${marker.description ? `<p>${marker.description}</p>` : ''}`
-      );
-      
-      // Create marker
-      const mapboxMarker = new mapboxgl.Marker(el)
-        .setLngLat([marker.longitude, marker.latitude])
-        .setPopup(popup)
-        .addTo(map.current!);
-      
-      if (onMarkerClick) {
-        el.addEventListener('click', () => {
-          onMarkerClick(marker);
-        });
-      }
-      
-      markersRef.current[marker.id] = mapboxMarker;
-    });
-  }, [markers, mapInitialized, onMarkerClick]);
-
-  const handleRecenter = async () => {
-    const location = await getCurrentLocation();
-    if (location && map.current) {
-      map.current.flyTo({
-        center: [location.longitude, location.latitude],
-        zoom: 14,
-        essential: true,
-      });
+  // Handle marker click
+  const handleMarkerClick = (marker: Marker) => {
+    setSelectedMarker(marker);
+    if (onMarkerClick) {
+      onMarkerClick(marker);
     }
   };
 
+  // Handle recenter to user location
+  const handleRecenter = async () => {
+    const location = await getCurrentLocation();
+    if (location && mapRef.current) {
+      mapRef.current.panTo({ lat: location.latitude, lng: location.longitude });
+      mapRef.current.setZoom(14);
+    }
+  };
+
+  // Get marker icon based on type
+  const getMarkerIcon = (marker: Marker) => {
+    let color = marker.color || '#3b82f6';
+    if (marker.type === 'donor') color = '#ef4444';
+    if (marker.type === 'center') color = '#22c55e';
+    if (marker.type === 'hospital') color = '#3b82f6';
+    if (marker.type === 'emergency') color = '#f97316';
+
+    return {
+      path: google.maps.SymbolPath.CIRCLE,
+      fillColor: color,
+      fillOpacity: 1,
+      strokeWeight: 2,
+      strokeColor: '#ffffff',
+      scale: 8,
+    };
+  };
+
+  if (!isLoaded) {
+    return <div style={{ height, width }} className={`flex items-center justify-center bg-muted ${className}`}>Loading map...</div>;
+  }
+
   return (
     <div className={`relative ${className}`} style={{ height, width }}>
-      <div ref={mapContainer} className="absolute inset-0 rounded-lg shadow-md" />
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        center={center}
+        zoom={initialZoom}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        options={{
+          disableDefaultUI: !interactive,
+          zoomControl: interactive,
+          scrollwheel: interactive,
+          gestureHandling: interactive ? 'auto' : 'none',
+          styles: [
+            {
+              featureType: 'poi',
+              elementType: 'labels',
+              stylers: [{ visibility: 'off' }]
+            }
+          ]
+        }}
+      >
+        {markers.map((marker) => (
+          <Marker
+            key={marker.id}
+            position={{ lat: marker.latitude, lng: marker.longitude }}
+            onClick={() => handleMarkerClick(marker)}
+            icon={getMarkerIcon(marker)}
+            title={marker.title}
+          />
+        ))}
+
+        {selectedMarker && (
+          <InfoWindow
+            position={{ lat: selectedMarker.latitude, lng: selectedMarker.longitude }}
+            onCloseClick={() => setSelectedMarker(null)}
+          >
+            <div className="p-2">
+              <h3 className="font-semibold">{selectedMarker.title}</h3>
+              {selectedMarker.description && <p className="text-sm">{selectedMarker.description}</p>}
+            </div>
+          </InfoWindow>
+        )}
+      </GoogleMap>
       
       {interactive && (
         <Button 
