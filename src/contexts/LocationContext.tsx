@@ -57,8 +57,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Get location when component mounts
-    getCurrentLocation();
+    // Get location when component mounts - but don't throw errors on initial load
+    getCurrentLocation().catch(err => {
+      console.log('Initial location fetch failed silently:', err);
+    });
   }, []);
 
   return (
