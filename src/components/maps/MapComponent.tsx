@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { Button } from '@/components/ui/button';
@@ -17,7 +16,7 @@ type MapMarker = {
   latitude: number;
   title: string;
   description?: string;
-  type?: 'donor' | 'center' | 'hospital' | 'emergency';
+  type?: 'donor' | 'center' | 'hospital' | 'emergency' | 'user';
   color?: string;
 };
 
@@ -116,6 +115,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (marker.type === 'center') color = '#22c55e';
     if (marker.type === 'hospital') color = '#3b82f6';
     if (marker.type === 'emergency') color = '#f97316';
+    if (marker.type === 'user') color = '#8b5cf6'; // Added color for user type
 
     return {
       path: google.maps.SymbolPath.CIRCLE,

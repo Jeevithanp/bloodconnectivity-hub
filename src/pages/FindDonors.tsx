@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useLocation } from '@/contexts/LocationContext';
@@ -337,14 +336,14 @@ const FindDonors = () => {
                       latitude: userLocation.latitude,
                       longitude: userLocation.longitude,
                       title: 'Your Location',
-                      type: 'user'
+                      type: 'user' as const
                     },
                     ...donors.map((donor, index) => ({
                       id: donor.id || `donor-${index}`,
                       latitude: donor.latitude,
                       longitude: donor.longitude,
                       title: donor.full_name,
-                      type: 'donor'
+                      type: 'donor' as const
                     }))
                   ]}
                 />
