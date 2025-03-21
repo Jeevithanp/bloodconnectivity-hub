@@ -3,6 +3,7 @@ export interface ProfileData {
   full_name: string;
   blood_type: string;
   address: string;
+  phone?: string; // Added phone field
   birth_date: string;
   is_donor: boolean;
   last_donation: string | null;

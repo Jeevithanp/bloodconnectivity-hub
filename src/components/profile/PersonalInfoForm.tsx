@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, Calendar } from 'lucide-react';
+import { User, Calendar, MapPin, Phone } from 'lucide-react';
 import { ProfileData } from '@/types/profile';
 
 interface PersonalInfoFormProps {
@@ -15,6 +15,8 @@ interface PersonalInfoFormProps {
 }
 
 const PersonalInfoForm = ({ profile, setProfile, handleSave, isSaving }: PersonalInfoFormProps) => {
+  const isAddressEmpty = !profile.address || profile.address.trim() === '';
+  
   return (
     <Card>
       <CardHeader>
@@ -58,10 +60,33 @@ const PersonalInfoForm = ({ profile, setProfile, handleSave, isSaving }: Persona
         </div>
         
         <div className="space-y-2">
-          <label className="text-sm font-medium">Address</label>
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium flex items-center">
+              <MapPin className="h-4 w-4 mr-1" />
+              Address <span className="text-red-500 ml-1">*</span>
+            </label>
+            {isAddressEmpty && (
+              <span className="text-red-500 text-xs">Required for emergency contact</span>
+            )}
+          </div>
           <Input 
             value={profile.address}
             onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+            className={isAddressEmpty ? "border-red-300 focus:ring-red-500" : ""}
+            placeholder="Enter your full address for emergency situations"
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium flex items-center">
+            <Phone className="h-4 w-4 mr-1" />
+            Phone Number
+          </label>
+          <Input 
+            type="tel"
+            value={profile.phone || ''}
+            onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+            placeholder="Phone number for emergency contact"
           />
         </div>
         
@@ -101,9 +126,16 @@ const PersonalInfoForm = ({ profile, setProfile, handleSave, isSaving }: Persona
         )}
       </CardContent>
       <CardFooter>
-        <Button onClick={handleSave} disabled={isSaving}>
+        <Button 
+          onClick={handleSave} 
+          disabled={isSaving || isAddressEmpty}
+          className="mr-2"
+        >
           {isSaving ? 'Saving...' : 'Save Changes'}
         </Button>
+        {isAddressEmpty && (
+          <span className="text-red-500 text-sm">Please provide your address</span>
+        )}
       </CardFooter>
     </Card>
   );

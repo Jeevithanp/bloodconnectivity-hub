@@ -10,6 +10,7 @@ const initialProfileState: ProfileData = {
   full_name: '',
   blood_type: '',
   address: '',
+  phone: '',
   birth_date: '',
   is_donor: false,
   last_donation: null,
@@ -24,6 +25,7 @@ export const useProfileData = (userId: string | undefined) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
   const [profile, setProfile] = useState<ProfileData>(initialProfileState);
+  const [isLocationMandatory, setIsLocationMandatory] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
@@ -37,12 +39,18 @@ export const useProfileData = (userId: string | undefined) => {
             full_name: data.data.full_name || '',
             blood_type: data.data.blood_type || '',
             address: data.data.address || '',
+            phone: data.data.phone || '',
             birth_date: data.data.birth_date || '',
             is_donor: data.data.is_donor || false,
             last_donation: data.data.last_donation || null,
             latitude: data.data.latitude || null,
             longitude: data.data.longitude || null,
           });
+          
+          // If user has no location data and they're a donor, mark location as mandatory
+          if (data.data.is_donor && (!data.data.latitude || !data.data.longitude)) {
+            setIsLocationMandatory(true);
+          }
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -57,10 +65,37 @@ export const useProfileData = (userId: string | undefined) => {
     }
 
     loadProfile();
+    
+    // Check if there's an 'emergency' parameter in the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('emergency') === 'true') {
+      setIsLocationMandatory(true);
+    }
   }, [userId, toast]);
 
   const handleSave = async () => {
     if (!userId) return;
+    
+    // Validate address for all users
+    if (!profile.address.trim()) {
+      toast({
+        title: 'Address Required',
+        description: 'Please enter your address for emergency situations.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // If location is mandatory but missing, get it
+    if (isLocationMandatory && (!profile.latitude || !profile.longitude)) {
+      toast({
+        title: 'Location Required',
+        description: 'Please update your location for emergency situations.',
+        variant: 'destructive',
+      });
+      await handleUpdateLocation();
+      return;
+    }
     
     try {
       setIsSaving(true);
@@ -104,6 +139,9 @@ export const useProfileData = (userId: string | undefined) => {
           title: 'Location Updated',
           description: 'Your current location has been saved.',
         });
+        
+        // Reset the mandatory flag
+        setIsLocationMandatory(false);
       }
     } catch (error) {
       console.error('Error updating location:', error);
@@ -123,6 +161,7 @@ export const useProfileData = (userId: string | undefined) => {
     isLoading,
     isSaving,
     isUpdatingLocation,
+    isLocationMandatory,
     handleSave,
     handleUpdateLocation
   };

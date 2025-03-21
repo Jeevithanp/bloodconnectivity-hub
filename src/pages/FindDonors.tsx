@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
@@ -14,6 +15,7 @@ import { useLocation } from '@/contexts/LocationContext';
 import MapComponent from '@/components/maps/MapComponent';
 import DonorTracker from '@/components/maps/DonorTracker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 type Donor = {
   id: string;
@@ -23,6 +25,7 @@ type Donor = {
   distance?: number;
   latitude?: number;
   longitude?: number;
+  phone?: string; // Optional phone field
 };
 
 const FindDonors = () => {
@@ -31,14 +34,43 @@ const FindDonors = () => {
   const [donors, setDonors] = useState<Donor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewType, setViewType] = useState<'list' | 'map'>('list');
-  const [trackedDonor, setTrackedDonor] = useState<{id: string; name: string} | null>(null);
+  const [trackedDonor, setTrackedDonor] = useState<{id: string; name: string; phone?: string} | null>(null);
+  const [isEmergencyMode, setIsEmergencyMode] = useState(false);
+  const [locationRequiredDialog, setLocationRequiredDialog] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { userLocation, getCurrentLocation } = useLocation();
 
+  // Check if in emergency mode when page loads
+  useEffect(() => {
+    // Check URL parameters for emergency mode
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('emergency') === 'true') {
+      setIsEmergencyMode(true);
+      // If no location, prompt for it
+      if (!userLocation) {
+        setLocationRequiredDialog(true);
+      }
+    }
+  }, []);
+  
+  // If location is required but not available, show dialog
+  useEffect(() => {
+    if (isEmergencyMode && !userLocation) {
+      setLocationRequiredDialog(true);
+    }
+  }, [isEmergencyMode, userLocation]);
+
   const handleSearch = async () => {
     setIsLoading(true);
+    
+    // In emergency mode, require location
+    if (isEmergencyMode && !userLocation) {
+      setLocationRequiredDialog(true);
+      setIsLoading(false);
+      return;
+    }
     
     try {
       let data;
@@ -60,10 +92,16 @@ const FindDonors = () => {
       }
       
       if (data && data.data) {
-        setDonors(data.data);
+        // Add mock phone numbers for demo
+        const donorsWithContacts = data.data.map((donor: Donor) => ({
+          ...donor,
+          phone: `555-${Math.floor(100 + Math.random() * 900)}-${Math.floor(1000 + Math.random() * 9000)}`
+        }));
+        
+        setDonors(donorsWithContacts);
         
         toast({
-          title: `${data.data.length} donors found`,
+          title: `${donorsWithContacts.length} donors found`,
           description: "You can now contact them directly.",
         });
       } else {
@@ -110,7 +148,7 @@ const FindDonors = () => {
     }
   }, [userLocation, donors.length]);
 
-  const handleContact = (donor: Donor) => {
+  const handleContact = (donor: Donor, contactMethod: 'call' | 'message') => {
     if (!user) {
       toast({
         title: "Authentication required",
@@ -120,10 +158,26 @@ const FindDonors = () => {
       return;
     }
     
-    toast({
-      title: `Contacting ${donor.full_name}`,
-      description: "A notification has been sent to the donor.",
-    });
+    if (contactMethod === 'call' && donor.phone) {
+      // Use tel: protocol to initiate a phone call
+      window.location.href = `tel:${donor.phone}`;
+      toast({
+        title: `Calling ${donor.full_name}`,
+        description: "Connecting you to the donor.",
+      });
+    } else if (contactMethod === 'message' && donor.phone) {
+      // Use sms: protocol to open messaging app
+      const messageBody = isEmergencyMode 
+        ? `EMERGENCY: Urgent need for ${donor.blood_type} blood. Please respond ASAP.` 
+        : `Hello, I'm looking for ${donor.blood_type} blood donation. Can you help?`;
+      
+      window.location.href = `sms:${donor.phone}?body=${encodeURIComponent(messageBody)}`;
+      
+      toast({
+        title: `Messaging ${donor.full_name}`,
+        description: "Opening your messaging app.",
+      });
+    }
   };
 
   const handleTrackDonor = (donor: Donor) => {
@@ -138,7 +192,8 @@ const FindDonors = () => {
     
     setTrackedDonor({
       id: donor.id,
-      name: donor.full_name
+      name: donor.full_name,
+      phone: donor.phone
     });
   };
 
@@ -149,10 +204,23 @@ const FindDonors = () => {
         title: "Location Updated",
         description: "Your current location has been updated.",
       });
+      setLocationRequiredDialog(false);
       // Trigger a new search with the updated location
       handleSearch();
     }
   };
+
+  // If emergency mode, prioritize blood type dropdown
+  const emergencyHeader = isEmergencyMode ? (
+    <div className="bg-red-50 border border-red-200 p-4 rounded-lg mb-6">
+      <h2 className="text-red-600 font-semibold flex items-center gap-2">
+        <span className="animate-pulse">●</span> Emergency Mode
+      </h2>
+      <p className="text-sm text-red-700 mt-1">
+        Prioritizing {bloodType !== 'any' ? bloodType : 'all compatible'} blood type donors near your location
+      </p>
+    </div>
+  ) : null;
 
   return (
     <Layout>
@@ -162,6 +230,7 @@ const FindDonors = () => {
           <p className="text-muted-foreground text-lg">
             Search for compatible donors in your area based on blood type and distance.
           </p>
+          {emergencyHeader}
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -217,11 +286,11 @@ const FindDonors = () => {
               </CardContent>
               <CardFooter>
                 <Button 
-                  className="w-full" 
+                  className={`w-full ${isEmergencyMode ? 'bg-red-600 hover:bg-red-700' : ''}`}
                   onClick={handleSearch}
                   disabled={isLoading}
                 >
-                  {isLoading ? "Searching..." : "Search Donors"}
+                  {isLoading ? "Searching..." : `${isEmergencyMode ? 'Emergency' : ''} Search Donors`}
                 </Button>
               </CardFooter>
             </Card>
@@ -263,6 +332,7 @@ const FindDonors = () => {
               <DonorTracker 
                 donorId={trackedDonor.id} 
                 donorName={trackedDonor.name}
+                contactPhone={trackedDonor.phone}
                 onClose={() => setTrackedDonor(null)}
               />
             ) : viewType === 'map' && donors.length > 0 ? (
@@ -305,7 +375,7 @@ const FindDonors = () => {
             ) : (
               <div className="space-y-4">
                 {donors.map(donor => (
-                  <Card key={donor.id} className="hover-lift">
+                  <Card key={donor.id} className={`hover-lift ${isEmergencyMode ? 'border-red-200' : ''}`}>
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div>
@@ -325,15 +395,30 @@ const FindDonors = () => {
                           )}
                         </div>
                         <div className="flex flex-col gap-2">
-                          <Button size="sm" variant="outline" className="flex items-center gap-2" onClick={() => handleContact(donor)}>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="flex items-center gap-2" 
+                            onClick={() => handleContact(donor, 'call')}
+                          >
                             <Phone className="h-4 w-4" />
                             <span>Call</span>
                           </Button>
-                          <Button size="sm" variant="outline" className="flex items-center gap-2" onClick={() => handleContact(donor)}>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="flex items-center gap-2" 
+                            onClick={() => handleContact(donor, 'message')}
+                          >
                             <MessageSquare className="h-4 w-4" />
                             <span>Message</span>
                           </Button>
-                          <Button size="sm" variant="outline" className="flex items-center gap-2" onClick={() => handleTrackDonor(donor)}>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="flex items-center gap-2" 
+                            onClick={() => handleTrackDonor(donor)}
+                          >
                             <Navigation className="h-4 w-4" />
                             <span>Track</span>
                           </Button>
@@ -347,6 +432,28 @@ const FindDonors = () => {
           </div>
         </div>
       </div>
+      
+      {/* Location Required Dialog */}
+      <Dialog open={locationRequiredDialog} onOpenChange={setLocationRequiredDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Location Required</DialogTitle>
+            <DialogDescription>
+              For emergency situations, we need your location to find the closest donors.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="mb-4">Your location information is crucial to connect you with nearby donors quickly in an emergency.</p>
+            <Button 
+              className="w-full" 
+              onClick={handleGetLocation}
+            >
+              <Target className="mr-2 h-4 w-4" />
+              Share My Location
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileData } from '@/hooks/useProfileData';
@@ -9,12 +9,16 @@ import ProfileActionCards from '@/components/profile/ProfileActionCards';
 import DonateNowForm from '@/components/profile/DonateNowForm';
 import { useToast } from '@/components/ui/use-toast';
 import { updateDonorStatus } from '@/api/userService';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Target } from 'lucide-react';
 
 const UserProfile = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [donationFormOpen, setDonationFormOpen] = useState(false);
   const [isSubmittingDonation, setIsSubmittingDonation] = useState(false);
+  const [locationPromptOpen, setLocationPromptOpen] = useState(false);
   
   const {
     profile,
@@ -22,9 +26,17 @@ const UserProfile = () => {
     isLoading,
     isSaving,
     isUpdatingLocation,
+    isLocationMandatory,
     handleSave,
     handleUpdateLocation
   } = useProfileData(user?.id);
+
+  // Check if location update is required and prompt if needed
+  useEffect(() => {
+    if (!isLoading && isLocationMandatory && profile.is_donor) {
+      setLocationPromptOpen(true);
+    }
+  }, [isLoading, isLocationMandatory, profile.is_donor]);
 
   const handleDonateNowClick = () => {
     if (!profile.is_donor) {
@@ -35,6 +47,27 @@ const UserProfile = () => {
       });
       return;
     }
+
+    // Check if address and location are provided
+    if (!profile.address.trim()) {
+      toast({
+        title: "Address Required",
+        description: "Please provide your address before donating.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!profile.latitude || !profile.longitude) {
+      toast({
+        title: "Location Required",
+        description: "Please update your location before donating.",
+        variant: "destructive"
+      });
+      setLocationPromptOpen(true);
+      return;
+    }
+    
     setDonationFormOpen(true);
   };
 
@@ -123,6 +156,40 @@ const UserProfile = () => {
             onSubmit={handleDonationSubmit}
             isSubmitting={isSubmittingDonation}
           />
+
+          {/* Location Prompt Dialog */}
+          <Dialog open={locationPromptOpen} onOpenChange={setLocationPromptOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Location Required</DialogTitle>
+                <DialogDescription>
+                  For emergency blood donation situations, we need your current location to connect you with nearby recipients quickly.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <p className="mb-4">Your location helps us connect you with those in need during emergencies.</p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-end">
+                  <Button 
+                    variant="outline"
+                    onClick={() => setLocationPromptOpen(false)}
+                  >
+                    Later
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      handleUpdateLocation();
+                      setLocationPromptOpen(false);
+                    }}
+                    disabled={isUpdatingLocation}
+                    className="flex items-center"
+                  >
+                    <Target className="mr-2 h-4 w-4" />
+                    {isUpdatingLocation ? 'Updating...' : 'Update My Location'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </Layout>

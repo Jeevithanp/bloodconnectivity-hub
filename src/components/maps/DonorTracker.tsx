@@ -13,6 +13,7 @@ type DonorTrackerProps = {
   donorId: string;
   donorName: string;
   onClose: () => void;
+  contactPhone?: string;
 };
 
 type DonorLocation = {
@@ -24,12 +25,19 @@ type DonorLocation = {
   status?: 'moving' | 'stationary' | 'arrived';
 };
 
-const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose }) => {
+const DonorTracker: React.FC<DonorTrackerProps> = ({ 
+  donorId, 
+  donorName, 
+  onClose,
+  contactPhone = "911" // Default emergency number if donor phone not available
+}) => {
   const [donorLocation, setDonorLocation] = useState<DonorLocation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [trackingStarted, setTrackingStarted] = useState(false);
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
   const [distanceFromUser, setDistanceFromUser] = useState<string | null>(null);
+  const [isMessaging, setIsMessaging] = useState(false);
+  const [messageText, setMessageText] = useState("");
   const { toast } = useToast();
   const { userLocation } = useLocation();
   
@@ -129,6 +137,24 @@ const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose
     }
   };
 
+  const handleCall = () => {
+    // Use tel: protocol to initiate a phone call
+    window.location.href = `tel:${contactPhone}`;
+    toast({
+      title: 'Initiating Call',
+      description: `Calling ${donorName} for emergency assistance`,
+    });
+  };
+
+  const handleMessage = () => {
+    // Use sms: protocol to open messaging app
+    window.location.href = `sms:${contactPhone}?body=Emergency: Need blood donation assistance. Please respond ASAP.`;
+    toast({
+      title: 'Message Sent',
+      description: `Emergency message sent to ${donorName}`,
+    });
+  };
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
@@ -216,18 +242,38 @@ const DonorTracker: React.FC<DonorTrackerProps> = ({ donorId, donorName, onClose
             </div>
             
             <div className="flex gap-2 mt-4">
-              <Button variant="outline" className="flex-1 flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                className="flex-1 flex items-center gap-2"
+                onClick={handleCall}
+              >
                 <Phone className="h-4 w-4" />
                 <span>Call</span>
               </Button>
-              <Button variant="outline" className="flex-1 flex items-center gap-2" onClick={openDirections}>
+              <Button 
+                variant="outline" 
+                className="flex-1 flex items-center gap-2" 
+                onClick={handleMessage}
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>Message</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="flex-1 flex items-center gap-2" 
+                onClick={openDirections}
+              >
                 <Navigation className="h-4 w-4" />
                 <span>Directions</span>
               </Button>
-              <Button variant="destructive" className="flex-1" onClick={stopTracking}>
-                Stop
-              </Button>
             </div>
+            <Button 
+              variant="destructive" 
+              className="w-full mt-2" 
+              onClick={stopTracking}
+            >
+              Stop Tracking
+            </Button>
           </>
         ) : (
           <div className="text-center py-6">
