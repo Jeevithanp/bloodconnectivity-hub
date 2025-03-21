@@ -47,8 +47,8 @@ const ProfileActionCards = ({
               Register for a blood donation at your preferred hospital
             </p>
             <Button 
-              variant="primary" 
-              className="w-full"
+              variant="default" 
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={onDonateNowClick}
               disabled={!isDonor}
             >
