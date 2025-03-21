@@ -9,3 +9,10 @@ export interface ProfileData {
   latitude: number | null;
   longitude: number | null;
 }
+
+export interface DonationFormData {
+  hospitalName: string;
+  donationDate: string;
+  donationTime: string;
+  additionalNotes?: string;
+}
