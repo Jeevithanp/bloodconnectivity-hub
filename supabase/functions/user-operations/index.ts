@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.36.0";
 
@@ -74,6 +73,8 @@ serve(async (req) => {
           .eq("id", userId);
         break;
 
+      
+      
       case "getDonors":
         // Get list of donors based on blood type and location
         const { bloodType, maxDistance } = data;
@@ -200,6 +201,8 @@ serve(async (req) => {
         };
         break;
 
+      
+      
       case "getDonationCenters":
         // Get donation centers near a location
         // For now, this would be mocked data
@@ -251,6 +254,34 @@ serve(async (req) => {
             last_donation: data.isDonor ? new Date().toISOString() : null
           })
           .eq("id", userId);
+        break;
+
+      case "registerDonation":
+        // Register a donation
+        const donationData = {
+          user_id: userId,
+          hospital_name: data.hospitalName,
+          donation_date: data.donationDate,
+          donation_time: data.donationTime,
+          notes: data.additionalNotes || null,
+          created_at: new Date().toISOString()
+        };
+        
+        // Update the user's last donation date
+        const userUpdateResult = await supabase
+          .from("profiles")
+          .update({ 
+            last_donation: new Date().toISOString()
+          })
+          .eq("id", userId);
+        
+        if (userUpdateResult.error) {
+          throw userUpdateResult.error;
+        }
+        
+        // In a real app, we would store this in a donations table
+        // For now, just return success
+        result = { data: { success: true, message: "Donation registered successfully" } };
         break;
 
       default:

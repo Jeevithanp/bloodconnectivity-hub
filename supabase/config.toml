@@ -3,3 +3,6 @@ project_id = "ursumetnlpihbomrnevm"
 
 [functions.user-operations]
 verify_jwt = true
+
+[functions.twilio-notifications]
+verify_jwt = true

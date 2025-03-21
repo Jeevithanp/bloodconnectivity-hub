@@ -2,291 +2,270 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
-import { Phone, MessageSquare, MapPin, Clock, LocateFixed, Navigation } from 'lucide-react';
-import MapComponent from './MapComponent';
+import { Badge } from '@/components/ui/badge';
+import { Clock, Navigation, MapPin, AlertCircle, MessageSquare, Phone } from 'lucide-react';
 import { trackDonor } from '@/api/locationService';
-import { formatDistance } from '@/utils/mapUtils';
-import { useLocation } from '@/contexts/LocationContext';
+import { useToast } from '@/components/ui/use-toast';
+import MapComponent from './MapComponent';
+import { calculateDistance } from '@/lib/utils';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { sendSms, makeCall } from '@/api/notificationService';
 
-type DonorTrackerProps = {
-  donorId: string;
-  donorName: string;
-  onClose: () => void;
-  contactPhone?: string;
-};
+interface DonorTrackerProps {
+  donor: any;
+  userLocation: { latitude: number; longitude: number } | null;
+}
 
-type DonorLocation = {
-  latitude: number;
-  longitude: number;
-  lastUpdated: string;
-  address?: string;
-  eta?: string;
-  status?: 'moving' | 'stationary' | 'arrived';
-};
-
-const DonorTracker: React.FC<DonorTrackerProps> = ({ 
-  donorId, 
-  donorName, 
-  onClose,
-  contactPhone = "911" // Default emergency number if donor phone not available
-}) => {
-  const [donorLocation, setDonorLocation] = useState<DonorLocation | null>(null);
+const DonorTracker = ({ donor, userLocation }: DonorTrackerProps) => {
+  const [trackerData, setTrackerData] = useState<any>(null);
+  const [distance, setDistance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [trackingStarted, setTrackingStarted] = useState(false);
-  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
-  const [distanceFromUser, setDistanceFromUser] = useState<string | null>(null);
-  const [isMessaging, setIsMessaging] = useState(false);
-  const [messageText, setMessageText] = useState("");
-  const { toast } = useToast();
-  const { userLocation } = useLocation();
+  const [error, setError] = useState<string | null>(null);
+  const [showContactDialog, setShowContactDialog] = useState(false);
+  const [contactMessage, setContactMessage] = useState('');
+  const [contactType, setContactType] = useState<'sms' | 'call'>('sms');
+  const [isSending, setIsSending] = useState(false);
   
-  // Track interval reference
-  const trackingIntervalRef = React.useRef<number | null>(null);
-
+  const { toast } = useToast();
+  
   useEffect(() => {
-    let intervalId: number;
-
-    const fetchDonorLocation = async () => {
+    let trackingInterval: any;
+    
+    const updateTracking = async () => {
       try {
-        setIsLoading(true);
-        console.log('Tracking donor:', donorId);
-        const response = await trackDonor(donorId);
+        const data = await trackDonor(donor.id);
         
-        if (response?.data) {
-          setDonorLocation(response.data);
-          console.log('Donor location updated:', response.data);
-          
-          // Calculate distance if user location is available
-          if (userLocation && response.data.latitude && response.data.longitude) {
-            const distance = google.maps.geometry.spherical.computeDistanceBetween(
-              new google.maps.LatLng(userLocation.latitude, userLocation.longitude),
-              new google.maps.LatLng(response.data.latitude, response.data.longitude)
-            );
-            
-            // Convert from meters to kilometers
-            const distanceInKm = distance / 1000;
-            setDistanceFromUser(formatDistance(distanceInKm));
-          }
-        } else {
-          console.error('No donor location data received');
-          toast({
-            title: 'Tracking Error',
-            description: 'Could not retrieve donor location',
-            variant: 'destructive',
-          });
+        setTrackerData(data);
+        setIsLoading(false);
+        
+        if (data && data.latitude && data.longitude && userLocation) {
+          const dist = calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            data.latitude,
+            data.longitude
+          );
+          setDistance(dist);
         }
       } catch (error) {
-        console.error('Error tracking donor:', error);
-        toast({
-          title: 'Tracking Error',
-          description: 'Failed to track donor location',
-          variant: 'destructive',
-        });
-      } finally {
+        console.error("Error tracking donor:", error);
+        setError("Failed to track donor. Please try again.");
         setIsLoading(false);
       }
     };
-
-    if (trackingStarted) {
-      fetchDonorLocation();
-      // Update location every 15 seconds
-      trackingIntervalRef.current = window.setInterval(fetchDonorLocation, 15000) as unknown as number;
-    }
-
-    return () => {
-      if (trackingIntervalRef.current) {
-        console.log('Cleaning up tracking interval');
-        clearInterval(trackingIntervalRef.current);
-        trackingIntervalRef.current = null;
-      }
-    };
-  }, [donorId, trackingStarted, toast, userLocation]);
-
-  // Handle map loaded event
-  const handleMapLoaded = (map: google.maps.Map) => {
-    console.log('Map instance loaded in DonorTracker');
-    setMapInstance(map);
-  };
-
-  const startTracking = () => {
-    setTrackingStarted(true);
-    toast({
-      title: 'Tracking Started',
-      description: `Now tracking ${donorName}'s location`,
-    });
-  };
-
-  const stopTracking = () => {
-    setTrackingStarted(false);
-    if (trackingIntervalRef.current) {
-      clearInterval(trackingIntervalRef.current);
-      trackingIntervalRef.current = null;
-    }
     
-    toast({
-      title: 'Tracking Stopped',
-      description: `Stopped tracking ${donorName}'s location`,
-    });
+    // Initial update
+    updateTracking();
+    
+    // Set interval for tracking updates
+    trackingInterval = setInterval(updateTracking, 15000); // Update every 15 seconds
+    
+    return () => {
+      if (trackingInterval) clearInterval(trackingInterval);
+    };
+  }, [donor.id, userLocation]);
+
+  const handleContact = (type: 'sms' | 'call') => {
+    setContactType(type);
+    const defaultMessage = type === 'sms' 
+      ? `Hi ${donor.full_name}, thank you for donating. I'm tracking your location.` 
+      : `Hello ${donor.full_name}, this is an automated message to confirm your blood donation. Thank you for your support.`;
+    setContactMessage(defaultMessage);
+    setShowContactDialog(true);
   };
 
-  const openDirections = () => {
-    if (donorLocation) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${donorLocation.latitude},${donorLocation.longitude}`;
-      window.open(url, '_blank');
+  const handleSendMessage = async () => {
+    if (!donor || !donor.phone) {
+      toast({
+        title: "Contact Error",
+        description: "No phone number available for this donor.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      if (contactType === 'sms') {
+        await sendSms(donor.phone, contactMessage, false);
+        toast({
+          title: "Message Sent",
+          description: `SMS sent to ${donor.full_name}.`,
+        });
+      } else {
+        await makeCall(donor.phone, contactMessage, false);
+        toast({
+          title: "Call Initiated",
+          description: `Call initiated to ${donor.full_name}.`,
+        });
+      }
+      
+      setShowContactDialog(false);
+    } catch (error) {
+      console.error(`Error sending ${contactType}:`, error);
+      toast({
+        title: "Contact Error",
+        description: `Failed to send ${contactType}. Please try again.`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
     }
   };
-
-  const handleCall = () => {
-    // Use tel: protocol to initiate a phone call
-    window.location.href = `tel:${contactPhone}`;
-    toast({
-      title: 'Initiating Call',
-      description: `Calling ${donorName} for emergency assistance`,
-    });
-  };
-
-  const handleMessage = () => {
-    // Use sms: protocol to open messaging app
-    window.location.href = `sms:${contactPhone}?body=Emergency: Need blood donation assistance. Please respond ASAP.`;
-    toast({
-      title: 'Message Sent',
-      description: `Emergency message sent to ${donorName}`,
-    });
-  };
-
+  
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Tracking {donorName}</span>
-          <Button variant="ghost" size="sm" onClick={onClose}>✕</Button>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!trackingStarted ? (
-          <div className="text-center py-6">
-            <p className="text-muted-foreground mb-4">
-              You are about to start tracking {donorName}'s location. 
-              They will be notified about this tracking request.
-            </p>
-            <Button onClick={startTracking}>Start Tracking</Button>
-          </div>
-        ) : isLoading && !donorLocation ? (
-          <div className="text-center py-6">
-            <div className="animate-pulse mb-4">
-              <div className="h-4 bg-muted rounded w-3/4 mx-auto mb-2"></div>
-              <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Tracking {donor.full_name}</span>
+            {trackerData?.status && (
+              <Badge variant={trackerData.status === 'moving' ? 'default' : 'secondary'}>
+                {trackerData.status === 'moving' ? 'Moving' : 'Stationary'}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <p>Loading tracking data...</p>
             </div>
-            <p className="text-muted-foreground">
-              Requesting location from {donorName}...
-            </p>
-          </div>
-        ) : donorLocation ? (
-          <>
-            <div className="h-64 w-full mb-4">
-              <MapComponent 
-                markers={[
-                  {
-                    id: donorId,
-                    latitude: donorLocation.latitude,
-                    longitude: donorLocation.longitude,
-                    title: donorName,
-                    type: 'donor'
-                  }
-                ]}
-                initialCenter={[donorLocation.longitude, donorLocation.latitude]}
-                initialZoom={15}
-                height="100%"
-                onMapLoaded={handleMapLoaded}
+          ) : error ? (
+            <div className="text-center py-8 text-destructive">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+              <p>{error}</p>
+            </div>
+          ) : trackerData ? (
+            <div>
+              <div className="h-64 rounded-lg overflow-hidden border mb-4">
+                <MapComponent 
+                  height="100%"
+                  initialCenter={[trackerData.longitude, trackerData.latitude]}
+                  initialZoom={14}
+                  markers={[
+                    {
+                      id: 'donor-location',
+                      latitude: trackerData.latitude,
+                      longitude: trackerData.longitude,
+                      title: `${donor.full_name} (${donor.blood_type})`,
+                      type: 'donor'
+                    },
+                    ...(userLocation ? [{
+                      id: 'user-location',
+                      latitude: userLocation.latitude,
+                      longitude: userLocation.longitude,
+                      title: 'Your Location',
+                      type: 'user'
+                    }] : [])
+                  ]}
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                <div className="bg-muted/30 p-4 rounded-lg flex flex-col items-center">
+                  <Clock className="h-5 w-5 text-primary mb-2" />
+                  <p className="text-sm font-medium">Last Update</p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(trackerData.lastUpdated).toLocaleTimeString()}
+                  </p>
+                </div>
+                
+                <div className="bg-muted/30 p-4 rounded-lg flex flex-col items-center">
+                  <Navigation className="h-5 w-5 text-primary mb-2" />
+                  <p className="text-sm font-medium">Distance</p>
+                  <p className="text-sm text-muted-foreground">
+                    {distance ? `${distance.toFixed(1)} km away` : 'Calculating...'}
+                  </p>
+                </div>
+                
+                <div className="bg-muted/30 p-4 rounded-lg flex flex-col items-center">
+                  <MapPin className="h-5 w-5 text-primary mb-2" />
+                  <p className="text-sm font-medium">ETA</p>
+                  <p className="text-sm text-muted-foreground">{trackerData.eta || 'Unknown'}</p>
+                </div>
+              </div>
+              
+              {donor.phone && (
+                <div className="flex flex-wrap gap-2 mt-6">
+                  <Button 
+                    variant="outline" 
+                    className="flex items-center gap-1"
+                    onClick={() => handleContact('sms')}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Send Message</span>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="flex items-center gap-1"
+                    onClick={() => handleContact('call')}
+                  >
+                    <Phone className="h-4 w-4" />
+                    <span>Make Call</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p>No tracking data available</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      {/* Contact Dialog */}
+      <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {contactType === 'sms' ? 'Send Message' : 'Make Call'} to {donor?.full_name}
+            </DialogTitle>
+            <DialogDescription>
+              {contactType === 'sms' 
+                ? 'Send an SMS to this donor.' 
+                : 'Initiate a call with a message that will be read to the donor.'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Message</label>
+              <Textarea 
+                value={contactMessage} 
+                onChange={(e) => setContactMessage(e.target.value)}
+                placeholder="Enter your message here"
+                rows={4}
               />
             </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-start gap-2">
-                <MapPin className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Current Location</p>
-                  <p className="text-sm text-muted-foreground">
-                    {donorLocation.address || 'Address not available'}
-                  </p>
-                  {distanceFromUser && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {distanceFromUser} from your location
-                    </p>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-2">
-                <Clock className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Estimated Arrival</p>
-                  <p className="text-sm text-muted-foreground">
-                    {donorLocation.eta || 'Calculating...'}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="border-t pt-3 mt-3 flex justify-between">
-                <p className="text-xs text-muted-foreground">
-                  Last updated: {new Date(donorLocation.lastUpdated).toLocaleTimeString()}
-                </p>
-                <p className={`text-xs font-medium ${
-                  donorLocation.status === 'moving' ? 'text-amber-500' : 
-                  donorLocation.status === 'arrived' ? 'text-green-500' : 'text-muted-foreground'
-                }`}>
-                  Status: {donorLocation.status || 'Unknown'}
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex gap-2 mt-4">
-              <Button 
-                variant="outline" 
-                className="flex-1 flex items-center gap-2"
-                onClick={handleCall}
-              >
-                <Phone className="h-4 w-4" />
-                <span>Call</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="flex-1 flex items-center gap-2" 
-                onClick={handleMessage}
-              >
-                <MessageSquare className="h-4 w-4" />
-                <span>Message</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="flex-1 flex items-center gap-2" 
-                onClick={openDirections}
-              >
-                <Navigation className="h-4 w-4" />
-                <span>Directions</span>
-              </Button>
-            </div>
-            <Button 
-              variant="destructive" 
-              className="w-full mt-2" 
-              onClick={stopTracking}
-            >
-              Stop Tracking
-            </Button>
-          </>
-        ) : (
-          <div className="text-center py-6">
-            <p className="text-muted-foreground">
-              Could not retrieve {donorName}'s location. They may have denied the tracking request.
-            </p>
-            <Button variant="outline" className="mt-4" onClick={onClose}>
-              Close
-            </Button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowContactDialog(false)}
+              disabled={isSending}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSendMessage}
+              disabled={isSending || !contactMessage.trim()}
+            >
+              {isSending ? (
+                <>
+                  <Clock className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : contactType === 'sms' ? 'Send Message' : 'Initiate Call'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
