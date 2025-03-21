@@ -1,15 +1,15 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Navigation, MapPin, AlertCircle, MessageSquare, Phone } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { trackDonor } from '@/api/locationService';
 import { useToast } from '@/components/ui/use-toast';
-import MapComponent from './MapComponent';
 import { calculateDistance } from '@/lib/utils';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { sendSms, makeCall } from '@/api/notificationService';
+import DonorLocationMap from './DonorLocationMap';
+import DonorTrackingInfo from './DonorTrackingInfo';
+import DonorContactActions from './DonorContactActions';
+import DonorContactDialog from './DonorContactDialog';
 
 interface DonorTrackerProps {
   donor: any;
@@ -24,7 +24,6 @@ const DonorTracker = ({ donor, userLocation }: DonorTrackerProps) => {
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [contactMessage, setContactMessage] = useState('');
   const [contactType, setContactType] = useState<'sms' | 'call'>('sms');
-  const [isSending, setIsSending] = useState(false);
   
   const { toast } = useToast();
   
@@ -73,45 +72,6 @@ const DonorTracker = ({ donor, userLocation }: DonorTrackerProps) => {
     setContactMessage(defaultMessage);
     setShowContactDialog(true);
   };
-
-  const handleSendMessage = async () => {
-    if (!donor || !donor.phone) {
-      toast({
-        title: "Contact Error",
-        description: "No phone number available for this donor.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSending(true);
-    try {
-      if (contactType === 'sms') {
-        await sendSms(donor.phone, contactMessage, false);
-        toast({
-          title: "Message Sent",
-          description: `SMS sent to ${donor.full_name}.`,
-        });
-      } else {
-        await makeCall(donor.phone, contactMessage, false);
-        toast({
-          title: "Call Initiated",
-          description: `Call initiated to ${donor.full_name}.`,
-        });
-      }
-      
-      setShowContactDialog(false);
-    } catch (error) {
-      console.error(`Error sending ${contactType}:`, error);
-      toast({
-        title: "Contact Error",
-        description: `Failed to send ${contactType}. Please try again.`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSending(false);
-    }
-  };
   
   return (
     <>
@@ -138,75 +98,15 @@ const DonorTracker = ({ donor, userLocation }: DonorTrackerProps) => {
             </div>
           ) : trackerData ? (
             <div>
-              <div className="h-64 rounded-lg overflow-hidden border mb-4">
-                <MapComponent 
-                  height="100%"
-                  initialCenter={[trackerData.longitude, trackerData.latitude]}
-                  initialZoom={14}
-                  markers={[
-                    {
-                      id: 'donor-location',
-                      latitude: trackerData.latitude,
-                      longitude: trackerData.longitude,
-                      title: `${donor.full_name} (${donor.blood_type})`,
-                      type: 'donor'
-                    },
-                    ...(userLocation ? [{
-                      id: 'user-location',
-                      latitude: userLocation.latitude,
-                      longitude: userLocation.longitude,
-                      title: 'Your Location',
-                      type: 'user' as const
-                    }] : [])
-                  ]}
-                />
-              </div>
+              <DonorLocationMap 
+                trackerData={trackerData} 
+                donor={donor} 
+                userLocation={userLocation} 
+              />
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-                <div className="bg-muted/30 p-4 rounded-lg flex flex-col items-center">
-                  <Clock className="h-5 w-5 text-primary mb-2" />
-                  <p className="text-sm font-medium">Last Update</p>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(trackerData.lastUpdated).toLocaleTimeString()}
-                  </p>
-                </div>
-                
-                <div className="bg-muted/30 p-4 rounded-lg flex flex-col items-center">
-                  <Navigation className="h-5 w-5 text-primary mb-2" />
-                  <p className="text-sm font-medium">Distance</p>
-                  <p className="text-sm text-muted-foreground">
-                    {distance ? `${distance.toFixed(1)} km away` : 'Calculating...'}
-                  </p>
-                </div>
-                
-                <div className="bg-muted/30 p-4 rounded-lg flex flex-col items-center">
-                  <MapPin className="h-5 w-5 text-primary mb-2" />
-                  <p className="text-sm font-medium">ETA</p>
-                  <p className="text-sm text-muted-foreground">{trackerData.eta || 'Unknown'}</p>
-                </div>
-              </div>
+              <DonorTrackingInfo trackerData={trackerData} distance={distance} />
               
-              {donor.phone && (
-                <div className="flex flex-wrap gap-2 mt-6">
-                  <Button 
-                    variant="outline" 
-                    className="flex items-center gap-1"
-                    onClick={() => handleContact('sms')}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    <span>Send Message</span>
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="flex items-center gap-1"
-                    onClick={() => handleContact('call')}
-                  >
-                    <Phone className="h-4 w-4" />
-                    <span>Make Call</span>
-                  </Button>
-                </div>
-              )}
+              <DonorContactActions donor={donor} onContact={handleContact} />
             </div>
           ) : (
             <div className="text-center py-8">
@@ -216,54 +116,14 @@ const DonorTracker = ({ donor, userLocation }: DonorTrackerProps) => {
         </CardContent>
       </Card>
       
-      {/* Contact Dialog */}
-      <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {contactType === 'sms' ? 'Send Message' : 'Make Call'} to {donor?.full_name}
-            </DialogTitle>
-            <DialogDescription>
-              {contactType === 'sms' 
-                ? 'Send an SMS to this donor.' 
-                : 'Initiate a call with a message that will be read to the donor.'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Message</label>
-              <Textarea 
-                value={contactMessage} 
-                onChange={(e) => setContactMessage(e.target.value)}
-                placeholder="Enter your message here"
-                rows={4}
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowContactDialog(false)}
-              disabled={isSending}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSendMessage}
-              disabled={isSending || !contactMessage.trim()}
-            >
-              {isSending ? (
-                <>
-                  <Clock className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
-                </>
-              ) : contactType === 'sms' ? 'Send Message' : 'Initiate Call'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DonorContactDialog
+        open={showContactDialog}
+        onOpenChange={setShowContactDialog}
+        donor={donor}
+        contactType={contactType}
+        contactMessage={contactMessage}
+        setContactMessage={setContactMessage}
+      />
     </>
   );
 };
