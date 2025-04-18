@@ -11,6 +11,9 @@ import { useToast } from '@/components/ui/use-toast';
 // Make sure it has Maps JavaScript API and Geocoding API enabled
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDb_UOAB9u0gH5KPzQXuavrXX-ItKm09So';
 
+// Define libraries array outside component to prevent reloads
+const LIBRARIES: ("places")[] = ['places'];
+
 type MapMarker = {
   id: string;
   longitude: number;
@@ -56,11 +59,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const mapRef = useRef<google.maps.Map | null>(null);
   const { toast } = useToast();
   
-  // Initialize Google Maps API
+  // Initialize Google Maps API with static libraries array
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-    libraries: ['places']
+    libraries: LIBRARIES
   });
 
   const onLoad = useCallback((map: google.maps.Map) => {
@@ -90,6 +93,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
+  // Generate Google Maps navigation URL
+  const generateMapsUrl = (marker: MapMarker) => {
+    if (!userLocation) return '';
+    
+    const origin = `${userLocation.latitude},${userLocation.longitude}`;
+    const destination = `${marker.latitude},${marker.longitude}`;
+    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+  };
+
   // Handle recenter to user location
   const handleRecenter = async () => {
     try {
@@ -108,6 +120,22 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
     }
   };
+
+  // Filter out invalid markers to prevent errors
+  const validMarkers = markers.filter(marker => {
+    const isValid = 
+      marker && 
+      typeof marker.latitude === 'number' && 
+      !isNaN(marker.latitude) && 
+      typeof marker.longitude === 'number' && 
+      !isNaN(marker.longitude);
+    
+    if (!isValid) {
+      console.warn('Invalid marker detected and filtered out:', marker);
+    }
+    
+    return isValid;
+  });
 
   // Get marker icon based on type
   const getMarkerIcon = (marker: MapMarker) => {
@@ -174,7 +202,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           ]
         }}
       >
-        {markers.map((marker) => (
+        {validMarkers.map((marker) => (
           <Marker
             key={marker.id}
             position={{ lat: marker.latitude, lng: marker.longitude }}
@@ -193,23 +221,39 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <div className="p-2">
               <h3 className="font-semibold">{selectedMarker.title}</h3>
               {selectedMarker.description && <p className="text-sm">{selectedMarker.description}</p>}
+              
+              {userLocation && selectedMarker.type === 'donor' && (
+                <div className="mt-2">
+                  <a 
+                    href={generateMapsUrl(selectedMarker)} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-primary text-sm flex items-center gap-1 hover:underline"
+                  >
+                    <Navigation className="h-3 w-3" /> 
+                    Navigate to location
+                  </a>
+                </div>
+              )}
             </div>
           </InfoWindow>
         )}
       </GoogleMap>
       
-      {interactive && (
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="absolute bottom-4 right-4 bg-white shadow-md z-10 flex items-center gap-1"
-          onClick={handleRecenter}
-          disabled={isLoading}
-        >
-          {isLoading ? <Target className="h-4 w-4 animate-spin" /> : <Target className="h-4 w-4" />}
-          <span>My Location</span>
-        </Button>
-      )}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+        {interactive && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="bg-white shadow-md z-10 flex items-center gap-1"
+            onClick={handleRecenter}
+            disabled={isLoading}
+          >
+            {isLoading ? <Target className="h-4 w-4 animate-spin" /> : <Target className="h-4 w-4" />}
+            <span>My Location</span>
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
