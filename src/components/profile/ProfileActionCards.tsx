@@ -2,7 +2,8 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Droplet, Map, Calendar } from 'lucide-react';
+import { Droplet, Map, Calendar, MapPin } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ProfileActionCardsProps {
   isDonor: boolean;
@@ -62,20 +63,29 @@ const ProfileActionCards = ({
         <CardContent className="pt-6">
           <div className="text-center">
             <div className="bg-primary/10 h-12 w-12 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Map className="h-6 w-6 text-primary" />
+              <MapPin className="h-6 w-6 text-primary" />
             </div>
             <h3 className="font-medium mb-2">Location Settings</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Update your location settings to help nearby recipients
+              Update your location to help nearby recipients find you quickly
             </p>
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={handleUpdateLocation}
-              disabled={isUpdatingLocation}
-            >
-              Update Location
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="default" 
+                    className="w-full"
+                    onClick={handleUpdateLocation}
+                    disabled={isUpdatingLocation}
+                  >
+                    {isUpdatingLocation ? 'Updating...' : 'Update Location'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Click to share your current location for emergency donors</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </CardContent>
       </Card>
