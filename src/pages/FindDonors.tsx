@@ -14,7 +14,7 @@ import DonorList from '@/components/donors/DonorList';
 import ContactDialog from '@/components/donors/ContactDialog';
 
 const FindDonors = () => {
-  const [bloodType, setBloodType] = useState('');
+  const [bloodType, setBloodType] = useState('all');
   const [maxDistance, setMaxDistance] = useState<number>(10);
   const [donors, setDonors] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,8 +72,11 @@ const FindDonors = () => {
 
     setIsLoading(true);
     try {
+      // Convert "all" to empty string for the API
+      const bloodTypeParam = bloodType === 'all' ? '' : bloodType;
+      
       const response = await getNearbyDonors(
-        bloodType, 
+        bloodTypeParam, 
         maxDistance, 
         userLocation.latitude, 
         userLocation.longitude
@@ -85,7 +88,7 @@ const FindDonors = () => {
         if (response.data.length === 0) {
           toast({
             title: "No Donors Found",
-            description: `No ${bloodType || "compatible"} donors found within ${maxDistance}km of your location.`,
+            description: `No ${bloodType !== 'all' ? bloodType : "compatible"} donors found within ${maxDistance}km of your location.`,
             variant: "destructive",
           });
         } else {
