@@ -1,7 +1,8 @@
+
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { Button } from '@/components/ui/button';
-import { Target } from 'lucide-react';
+import { Target, Navigation } from 'lucide-react';
 import { useLocation } from '@/contexts/LocationContext';
 import { useToast } from '@/components/ui/use-toast';
 
