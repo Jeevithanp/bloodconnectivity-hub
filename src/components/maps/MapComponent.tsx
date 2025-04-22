@@ -2,11 +2,12 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { Button } from '@/components/ui/button';
-import { Target, Navigation } from 'lucide-react';
+import { Target, Navigation, MapPin } from 'lucide-react';
 import { useLocation } from '@/contexts/LocationContext';
 import { useToast } from '@/components/ui/use-toast';
 
 // Google Maps API key
+// For production, this should be stored in environment variables
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDb_UOAB9u0gH5KPzQXuavrXX-ItKm09So';
 
 // Define libraries array outside component to prevent reloads
@@ -56,6 +57,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const { toast } = useToast();
+  const [mapLoaded, setMapLoaded] = useState(false);
   
   // Initialize Google Maps API with static libraries array
   const { isLoaded, loadError } = useJsApiLoader({
@@ -67,15 +69,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const onLoad = useCallback((map: google.maps.Map) => {
     console.log('Map loaded successfully');
     mapRef.current = map;
+    setMapLoaded(true);
     if (onMapLoaded) onMapLoaded(map);
   }, [onMapLoaded]);
 
   const onUnmount = useCallback(() => {
     console.log('Map unmounted');
     mapRef.current = null;
+    setMapLoaded(false);
   }, []);
 
-  // Get center coordinates
+  // Get center coordinates with fallback values
   const center = initialCenter 
     ? { lat: initialCenter[1], lng: initialCenter[0] } 
     : userLocation
@@ -108,6 +112,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
         mapRef.current.panTo({ lat: location.latitude, lng: location.longitude });
         mapRef.current.setZoom(14);
         console.log('Map recentered to:', location);
+        toast({
+          title: 'Location Updated',
+          description: 'Map centered to your current location.',
+        });
       }
     } catch (error) {
       console.error('Error recentering map:', error);
@@ -162,19 +170,37 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [isLoaded, loadError]);
 
+  // Recenter map when user location changes if no initialCenter provided
+  useEffect(() => {
+    if (mapLoaded && mapRef.current && userLocation && !initialCenter) {
+      mapRef.current.panTo({ lat: userLocation.latitude, lng: userLocation.longitude });
+    }
+  }, [userLocation, initialCenter, mapLoaded]);
+
   if (loadError) {
     return <div style={{ height, width }} className={`flex items-center justify-center bg-muted ${className}`}>
       <div className="text-center p-4">
         <h3 className="text-lg font-semibold text-destructive mb-2">Error loading Google Maps</h3>
-        <p className="text-sm text-muted-foreground">{loadError.message}</p>
+        <p className="text-sm text-muted-foreground">{loadError.message || 'Failed to load Google Maps'}</p>
         <p className="text-xs mt-2">Please check your API key or internet connection</p>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="mt-4"
+          onClick={() => window.location.reload()}
+        >
+          Try Again
+        </Button>
       </div>
     </div>;
   }
 
   if (!isLoaded) {
     return <div style={{ height, width }} className={`flex items-center justify-center bg-muted ${className}`}>
-      <div className="animate-pulse">Loading map...</div>
+      <div className="animate-pulse flex items-center gap-2">
+        <MapPin className="h-5 w-5 animate-bounce" />
+        <span>Loading map...</span>
+      </div>
     </div>;
   }
 
@@ -257,4 +283,3 @@ const MapComponent: React.FC<MapComponentProps> = ({
 };
 
 export default MapComponent;
-
