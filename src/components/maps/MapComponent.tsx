@@ -7,8 +7,6 @@ import { useLocation } from '@/contexts/LocationContext';
 import { useToast } from '@/components/ui/use-toast';
 
 // Google Maps API key
-// Replace this with your actual Google Maps API key from Google Cloud Console
-// Make sure it has Maps JavaScript API and Geocoding API enabled
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDb_UOAB9u0gH5KPzQXuavrXX-ItKm09So';
 
 // Define libraries array outside component to prevent reloads
@@ -144,7 +142,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (marker.type === 'center') color = '#22c55e';
     if (marker.type === 'hospital') color = '#3b82f6';
     if (marker.type === 'emergency') color = '#f97316';
-    if (marker.type === 'user') color = '#8b5cf6'; // Added color for user type
+    if (marker.type === 'user') color = '#8b5cf6';
 
     return {
       path: google.maps.SymbolPath.CIRCLE,
@@ -259,3 +257,4 @@ const MapComponent: React.FC<MapComponentProps> = ({
 };
 
 export default MapComponent;
+
