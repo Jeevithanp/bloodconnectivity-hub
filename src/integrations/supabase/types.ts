@@ -14,7 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          address: string
+          birth_date: string
+          blood_type: string
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          is_donor: boolean
+          last_donation: string | null
+          latitude: number | null
+          longitude: number | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          birth_date: string
+          blood_type: string
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id: string
+          is_donor?: boolean
+          last_donation?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          birth_date?: string
+          blood_type?: string
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          is_donor?: boolean
+          last_donation?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
